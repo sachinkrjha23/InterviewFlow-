@@ -8,6 +8,9 @@ import {useNavigate} from "react-router-dom"
 import axios from "axios";
 import { serverUrl } from "../App";
 import { setUserData } from "../redux/userSlice";
+import AuthModel from "./AuthModel";
+import { signOut } from "firebase/auth";
+import { auth } from "../utils/firebase.js";
 
 
 function Navbar() {
@@ -16,10 +19,12 @@ function Navbar() {
   const [showUserPopup, setShowUserPopup] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const [showAuth, setShowAuth] = useState(false);
 
   const handleLogout = async () => {
     try{
-        await axios.post(serverUrl +"/api/auth/logout", {withCredentials:true})
+        await axios.post(serverUrl +"/api/auth/logout", {}, {withCredentials:true});
+        await signOut(auth);
         dispatch(setUserData(null))
         setShowCreditPopup(false)
         setShowUserPopup(false)
@@ -43,10 +48,9 @@ function Navbar() {
             className="w-full max-w-6xl bg-white rounded-[24px] shadow-sm border
              border-gray-200 px-8 py-4 flex justify-between items-center relative">
             
-                <div className="{{opacity: 0.3, y:-50}} cursor-pointer">
-                    <div className="bg-black text-white p-2 rounded-lg">
-                        <BsRobot size={18}/>
-
+                <div className="flex items-center gap-3 cursor-pointer">
+                    <div className="bg-black text-white p-2 rounded-lg flex items-center justify-center">
+                        <BsRobot size={18} />
                     </div>
                     <h1 className="font-semibold hidden md:block text-lg">InterviewFlow</h1>
                 </div>
@@ -54,8 +58,12 @@ function Navbar() {
                 <div className="flex items-center gap-6 relative">
 
                     <div className="relative">
-                        <button onClick={()=>{setShowCreditPopup
-                            (!showCreditPopup) ;
+                        <button onClick={()=>{
+                            if(!userData){
+                                setShowAuth(true)
+                                return;
+                            }
+                            setShowCreditPopup(!showCreditPopup);
                                 setShowUserPopup(false)
                             }} className="flex items-center gap-2 bg-gray-100 px-4 py-2 rounded-full text-md font-bold hover:bg-gray-300 transition">
                             <BsCoin size={22} />
@@ -77,7 +85,12 @@ function Navbar() {
                     </div>
 
                     <div className="relative">
-                        <button onClick={()=>{setShowUserPopup(!showUserPopup);
+                        <button onClick={()=>{
+                            if(!userData){
+                                setShowAuth(true)
+                                return;
+                            }
+                            setShowUserPopup(!showUserPopup);
                             setShowCreditPopup(false)
                         }}
                         className="w-9 h-9 bg-black text-white rounded-full flex items-center justify-center font-semibold">
@@ -102,6 +115,9 @@ function Navbar() {
                 </div>
 
         </motion.div>
+
+        {showAuth && <AuthModel onClose={()=>setShowAuth(false)}/>}
+
     </div>
   )
 }
