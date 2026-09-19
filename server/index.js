@@ -6,6 +6,7 @@ dotenv.config();
 import cors from "cors"
 import authRouter from "./routes/authRouter.js";
 import userRouter from "./routes/userRouter.js";
+import interviewRouter from "./routes/interviewRouter.js";
 
 const app = express();
 app.use(cors(
@@ -21,6 +22,7 @@ app.use(cookieParser());
 
 app.use("/api/auth", authRouter)
 app.use("/api/user", userRouter)
+app.use("/api/interview", interviewRouter)
 
 
 const PORT = process.env.PORT || 1500;
