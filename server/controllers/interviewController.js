@@ -190,16 +190,49 @@ Output ONLY the 6 questions, one per line.`,
       return res.status(500).json({ message: "AI returned empty response." });
     }
 
-    const questionsArray = aiResponse
+    let questionsArray = aiResponse
       .split("\n")
       .map((q) => q.trim().replace(/^\d+[).\s-]+/, ""))
       .filter((q) => q.length > 0)
       .slice(0, 6);
 
-    if (questionsArray.length === 0) {
-      return res
-        .status(500)
-        .json({ message: "AI failed to generate questions." });
+    // Retry if AI returned fewer than 6 questions
+    if (questionsArray.length < 6) {
+      console.warn(
+        `⚠️ Only got ${questionsArray.length} questions. Retrying...`,
+      );
+
+      const retry = await askAi([
+        {
+          role: "system",
+          content: `You are an expert interviewer. Output EXACTLY 6 interview questions.
+
+STRICT FORMAT:
+- One question per line.
+- No numbering. No bullets. No explanations.
+- Each line: ONE complete sentence, 15-25 words.
+- Output nothing else — no headers, no intro text.
+
+${modeRules}
+
+Output the 6 questions now:`,
+        },
+        { role: "user", content: userPrompt },
+      ]);
+
+      questionsArray = retry
+        .split("\n")
+        .map((q) => q.trim().replace(/^\d+[).\s-]+/, ""))
+        .filter((q) => q.length > 0)
+        .slice(0, 6);
+
+      console.log(`🔄 After retry: ${questionsArray.length} questions`);
+    }
+
+    if (questionsArray.length < 6) {
+      return res.status(500).json({
+        message: `AI only generated ${questionsArray.length} questions. Please try again.`,
+      });
     }
 
     user.credits -= 50;
