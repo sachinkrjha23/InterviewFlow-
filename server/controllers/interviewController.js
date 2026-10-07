@@ -94,14 +94,15 @@ export const generateQuestion = async (req, res) => {
         .json({ message: "Role, Experience and Mode are required." });
     }
 
-    const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ message: "User not found." });
-
-    if (user.credits < 50) {
+    const user = await User.findOneAndUpdate(
+      { _id: req.userId, credits: { $gte: 50 } },
+      { $inc: { credits: -50 } },
+      { new: true },
+    );
+    if (!user)
       return res
         .status(400)
         .json({ message: "Not enough credits. Minimum 50 required." });
-    }
 
     await Interview.deleteMany({ userId: user._id, status: "Incomplete" });
 
@@ -196,7 +197,6 @@ Output ONLY the 6 questions, one per line.`,
       .filter((q) => q.length > 0)
       .slice(0, 6);
 
-    // Retry if AI returned fewer than 6 questions
     if (questionsArray.length < 6) {
       console.warn(
         `⚠️ Only got ${questionsArray.length} questions. Retrying...`,
@@ -234,9 +234,6 @@ Output the 6 questions now:`,
         message: `AI only generated ${questionsArray.length} questions. Please try again.`,
       });
     }
-
-    user.credits -= 50;
-    await user.save();
 
     let interview;
     try {
@@ -315,18 +312,36 @@ export const submitAnswers = async (req, res) => {
 
     if (!answer) {
       question.score = 0;
+      question.confidence = 0;
+      question.communication = 0;
+      question.correctness = 0;
       question.feedback = "You did not submit an answer.";
       question.answer = "";
       await interview.save();
-      return res.json({ feedback: question.feedback });
+      return res.json({
+        feedback: question.feedback,
+        score: question.score,
+        confidence: question.confidence,
+        communication: question.communication,
+        correctness: question.correctness,
+      });
     }
 
     if (timeTaken > question.timeLimit) {
       question.score = 0;
+      question.confidence = 0;
+      question.communication = 0;
+      question.correctness = 0;
       question.feedback = "Time limit exceeded. Answer not evaluated.";
       question.answer = answer;
       await interview.save();
-      return res.json({ feedback: question.feedback });
+      return res.json({
+        feedback: question.feedback,
+        score: question.score,
+        confidence: question.confidence,
+        communication: question.communication,
+        correctness: question.correctness,
+      });
     }
 
     const messages = [
@@ -405,7 +420,14 @@ Return ONLY valid JSON (no markdown):
     question.feedback = parsed.feedback || "";
 
     await interview.save();
-    return res.status(200).json({ feedback: parsed.feedback });
+
+    return res.status(200).json({
+      feedback: question.feedback,
+      score: question.score,
+      confidence: question.confidence,
+      communication: question.communication,
+      correctness: question.correctness,
+    });
   } catch (error) {
     console.error(error);
     return res
@@ -466,6 +488,10 @@ export const finishInterview = async (req, res) => {
     await interview.save();
 
     return res.status(200).json({
+      role: interview.role,
+      experience: interview.experience,
+      mode: interview.mode,
+      createdAt: interview.createdAt,
       finalScore: Number(finalScore.toFixed(1)),
       confidence: Number(avgConfidence.toFixed(1)),
       communication: Number(avgCommunication.toFixed(1)),
@@ -484,5 +510,84 @@ export const finishInterview = async (req, res) => {
     return res
       .status(500)
       .json({ message: `Failed to finish interview: ${error.message}` });
+  }
+};
+
+export const getMyInterviews = async (req, res) => {
+  try {
+    const interviews = await Interview.find({ userId: req.userId })
+      .select("role experience mode finalScore status createdAt")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json(interviews);
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: `Failed to fetch interviews: ${error.message}` });
+  }
+};
+
+export const getInterviewReport = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ message: "Interview ID required." });
+    }
+
+    const interview = await Interview.findById(id);
+    if (!interview) {
+      return res.status(404).json({ message: "Interview not found." });
+    }
+
+    if (interview.userId.toString() !== req.userId) {
+      return res.status(403).json({ message: "Not your interview." });
+    }
+
+    const totalQuestions = interview.questions.length;
+    let totalConfidence = 0;
+    let totalCommunication = 0;
+    let totalCorrectness = 0;
+
+    interview.questions.forEach((q) => {
+      totalConfidence += q.confidence || 0;
+      totalCommunication += q.communication || 0;
+      totalCorrectness += q.correctness || 0;
+    });
+
+    const avgConfidence = totalQuestions ? totalConfidence / totalQuestions : 0;
+    const avgCommunication = totalQuestions
+      ? totalCommunication / totalQuestions
+      : 0;
+    const avgCorrectness = totalQuestions
+      ? totalCorrectness / totalQuestions
+      : 0;
+
+    return res.status(200).json({
+      interviewId: interview._id,
+      role: interview.role,
+      experience: interview.experience,
+      mode: interview.mode,
+      status: interview.status,
+      createdAt: interview.createdAt,
+      finalScore: Number(interview.finalScore.toFixed(1)),
+      confidence: Number(avgConfidence.toFixed(1)),
+      communication: Number(avgCommunication.toFixed(1)),
+      correctness: Number(avgCorrectness.toFixed(1)),
+      questionWiseScore: interview.questions.map((q) => ({
+        question: q.question,
+        answer: q.answer || "",
+        difficulty: q.difficulty,
+        score: q.score || 0,
+        confidence: q.confidence || 0,
+        communication: q.communication || 0,
+        correctness: q.correctness || 0,
+        feedback: q.feedback || "",
+      })),
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ message: `Failed to fetch report: ${error.message}` });
   }
 };
