@@ -26,6 +26,7 @@ import { generateReportPdf } from "../utils/generateReportPdf";
 function Step3Report({ report }) {
   const navigate = useNavigate();
   const [downloading, setDownloading] = useState(false);
+  const [pdfError, setPdfError] = useState("");
 
   if (!report) {
     return (
@@ -58,19 +59,23 @@ function Step3Report({ report }) {
     score: q.score ?? 0,
   }));
 
+  const isIncomplete = report.status === "Incomplete";
   let performanceText = "";
   let shortTagline = "";
 
-  if (finalScore >= 8) {
-    performanceText = "Ready for job opportunities.";
-    shortTagline = "Excellent clarity and structured responses.";
-  } else if (finalScore >= 5) {
-    performanceText = "Needs minor improvement before interviews.";
+  if (isIncomplete) {
+    performanceText = "Interview not finished";
     shortTagline =
-      "Good foundation, focus on important keywords and refinement.";
+      "This session wasn't completed, so scores only reflect the questions you answered.";
+  } else if (finalScore >= 8) {
+    performanceText = "Strong performance.";
+    shortTagline = "Clear, well-structured answers.";
+  } else if (finalScore >= 5) {
+    performanceText = "Solid base, room to improve.";
+    shortTagline = "Add more specifics and examples to strengthen your answers.";
   } else {
-    performanceText = "Significant improvement required.";
-    shortTagline = "Work on clarity and confidence.";
+    performanceText = "Needs more practice.";
+    shortTagline = "Focus on clarity, structure and confidence.";
   }
 
   const getScoreColor = (score) => {
@@ -104,11 +109,12 @@ function Step3Report({ report }) {
 
   const handleDownloadPdf = () => {
     try {
+      setPdfError("");
       setDownloading(true);
       generateReportPdf(report);
     } catch (err) {
       console.error(err);
-      alert("Failed to generate PDF");
+      setPdfError("Failed to generate PDF. Please try again.");
     } finally {
       setTimeout(() => setDownloading(false), 800);
     }
@@ -120,7 +126,6 @@ function Step3Report({ report }) {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-emerald-50/40 py-10 px-4 sm:px-6">
       <div className="max-w-5xl mx-auto">
 
-        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -158,7 +163,6 @@ function Step3Report({ report }) {
           </div>
         </motion.div>
 
-        {/* Hero score card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -231,7 +235,6 @@ function Step3Report({ report }) {
           </div>
         </motion.div>
 
-        {/* Metric cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           {metrics.map((m, i) => (
             <motion.div
@@ -277,7 +280,6 @@ function Step3Report({ report }) {
           ))}
         </div>
 
-        {/* Chart section */}
         {chartData.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -331,7 +333,6 @@ function Step3Report({ report }) {
           </motion.div>
         )}
 
-        {/* Question breakdown */}
         <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
           <FaChartLine className="text-emerald-600" />
           Detailed Breakdown
@@ -426,7 +427,6 @@ function Step3Report({ report }) {
           ))}
         </div>
 
-        {/* Actions */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -482,6 +482,10 @@ function Step3Report({ report }) {
             {downloading ? "Generating..." : "Download PDF"}
           </motion.button>
         </motion.div>
+
+        {pdfError && (
+          <p className="text-center text-sm text-red-500 mt-4">{pdfError}</p>
+        )}
       </div>
     </div>
   );

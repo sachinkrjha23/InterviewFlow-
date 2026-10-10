@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { BsRobot } from "react-icons/bs";
 import { IoSparkles } from "react-icons/io5";
 import { motion } from "motion/react";
@@ -14,25 +15,30 @@ import { setUserData } from "../redux/userSlice.js";
 function Auth({isModel = false}) {
 
     const dispatch = useDispatch()
-    const handleGoogleAuth = async () =>{
+    const navigate = useNavigate()
+    const location = useLocation()
+    const [errorMsg, setErrorMsg] = useState("")
 
+    const handleGoogleAuth = async () =>{
+        setErrorMsg("")
         try{
             const response = await signInWithPopup(auth, provider)
-
-            let User = response.user
-            let name = User.displayName
-            let email = User.email
-            const result = await axios.post(serverUrl + "/api/auth/google", 
-              {name, email}, {withCredentials:true}
+            const idToken = await response.user.getIdToken()
+            const result = await axios.post(
+              serverUrl + "/api/auth/google",
+              { idToken },
+              { withCredentials: true }
             )
 
             dispatch(setUserData(result.data))
-
+            if (!isModel) navigate(location.state?.from || "/", { replace: true })
         }
         catch(error)
         {
             console.log(error);
-            dispatch(setUserData(null))
+            if (error?.code !== "auth/popup-closed-by-user") {
+              setErrorMsg(error.response?.data?.message || "Sign-in failed. Please try again.")
+            }
         }
     }
   return (
@@ -63,8 +69,8 @@ function Auth({isModel = false}) {
         </h1>
 
         <p className="text-gray-500 text-center text-sm md:text-base leading-relaxed mb-8">
-          Sign in to start Ai-powered mock interviews, track your progress, and
-          unlock deetailed performance insights.
+          Sign in to start AI-powered mock interviews, track your progress, and
+          unlock detailed performance insights.
         </p>
 
         <motion.button
@@ -76,6 +82,9 @@ function Auth({isModel = false}) {
                 Continue with Google
             </motion.button>
       </motion.div>
+        {errorMsg && (
+          <p className="text-red-500 text-sm text-center mt-4">{errorMsg}</p>
+        )}
     </div>
   );
 }

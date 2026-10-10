@@ -40,8 +40,8 @@ function Home() {
     {
       icon: <BsMic size={22} />,
       step: "STEP 2",
-      title: "Smart Voice Interview",
-      desc: "Dynamic follow-up questions that feel like a real conversation.",
+      title: "AI Voice Interviewer",
+      desc: "Questions and feedback are spoken aloud while you type your answers.",
       color: "from-green-500 to-emerald-400",
       ring: "ring-green-100",
     },
@@ -72,13 +72,13 @@ function Home() {
       image: pdfImg,
       icon: <BsFileEarmarkText size={20} />,
       title: "Downloadable PDF Report",
-      desc: "Detailed strengths, weaknesses and improvement insights.",
+      desc: "Download a full report with scores, your answers, and feedback.",
     },
     {
       image: analyticsImg,
       icon: <BsBarChart size={20} />,
       title: "History and Analytics",
-      desc: "Track progress with performance graphs and topic analysis.",
+      desc: "Review your past interviews and detailed reports anytime.",
     },
   ];
 
@@ -97,15 +97,15 @@ function Home() {
     },
     {
       image: confidenceImg,
-      icon: <BsMic size={20} />,
-      title: "Confidence Detection",
-      desc: "Basic tone and voice analysis insights.",
+      icon: <BsBarChart  size={20} />,
+      title: "Confidence Scoring",
+      desc: "Rated from how clear and assertive your written answers are."
     },
     {
       image: creditImg,
       icon: <BsFileEarmarkText size={20} />,
       title: "Credit System",
-      desc: "Unlock premium interview sessions.",
+      desc: "Each interview uses 50 credits; new accounts start with 150."
     },
   ];
 
@@ -155,8 +155,7 @@ function Home() {
               transition={{ duration: 0.8, delay: 0.2 }}
               className="text-gray-500 mt-6 max-w-2xl mx-auto text-base sm:text-lg leading-relaxed"
             >
-              Role-based mock interviews with smart follow-ups, adaptive
-              difficulty, and real-time performance evaluation.
+              Role-based mock interviews with AI-voiced questions, rising difficulty, and instant performance evaluation.
             </motion.p>
 
             <motion.div

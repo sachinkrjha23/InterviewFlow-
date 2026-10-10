@@ -29,12 +29,15 @@ function Step1SetUp({ onStart }) {
   const [resumeText, setResumeText] = useState("");
   const [analysisDone, setAnalysisDone] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   const clickLockRef = useRef(false);
 
   const handleUploadResume = async () => {
     if (!resumeFile || analyzing) return;
     setAnalyzing(true);
+    setErrorMsg("");
+
 
     const formdata = new FormData();
     formdata.append("resume", resumeFile);
@@ -56,7 +59,7 @@ function Step1SetUp({ onStart }) {
       setAnalysisDone(true);
     } catch (error) {
       console.log(error);
-      alert(error.response?.data?.message || "Failed to analyze resume");
+      setErrorMsg(error.response?.data?.message || "Failed to analyze resume");
     } finally {
       setAnalyzing(false);
     }
@@ -65,7 +68,8 @@ function Step1SetUp({ onStart }) {
   const handleStart = async () => {
     if (clickLockRef.current) return;
 
-    if (!role || !experience) return;
+    if (!role.trim() || !experience.trim()) return;
+    setErrorMsg("");
 
     clickLockRef.current = true;
     setLoading(true);
@@ -96,7 +100,7 @@ function Step1SetUp({ onStart }) {
       onStart(result.data);
     } catch (error) {
       console.log(error);
-      alert(error.response?.data?.message || "Failed to start interview");
+      setErrorMsg(error.response?.data?.message || "Failed to start interview");
 
       clickLockRef.current = false;
       setStarted(false);
@@ -105,7 +109,7 @@ function Step1SetUp({ onStart }) {
     }
   };
 
-  const canStart = role && experience;
+  const canStart = role.trim() && experience.trim();
   const isLocked = loading || started;
 
   return (
@@ -161,7 +165,7 @@ function Step1SetUp({ onStart }) {
                 },
                 {
                   icon: <FaMicrophone />,
-                  text: "Smart Voice Interview",
+                  text: "AI Voice Interviewer",
                   bg: "bg-green-100 text-green-600",
                 },
                 {
@@ -281,11 +285,10 @@ function Step1SetUp({ onStart }) {
                 className={`border-2 border-dashed border-gray-300 rounded-xl
                            p-6 text-center bg-gray-50/50
                            transition-all
-                           ${
-                             isLocked
-                               ? "opacity-60 cursor-not-allowed"
-                               : "cursor-pointer hover:border-green-500 hover:bg-green-50/50"
-                           }`}
+                           ${isLocked
+                    ? "opacity-60 cursor-not-allowed"
+                    : "cursor-pointer hover:border-green-500 hover:bg-green-50/50"
+                  }`}
               >
                 <div
                   className="w-14 h-14 mx-auto mb-3 rounded-full
@@ -364,6 +367,12 @@ function Step1SetUp({ onStart }) {
                   </p>
                 )}
               </motion.div>
+            )}
+
+            {errorMsg && (
+              <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                {errorMsg}
+              </p>
             )}
 
             <motion.button

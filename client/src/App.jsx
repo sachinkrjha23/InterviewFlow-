@@ -9,22 +9,23 @@ import InterviewPage from "./pages/InterviewPage";
 import InterviewHistory from "./pages/InterviewHistory";
 import Pricing from "./pages/Pricing";
 import InterviewReport from "./pages/InterviewReport";
+import Profile from "./pages/Profile";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 
-export const serverUrl = "http://localhost:1000"
+export const serverUrl = import.meta.env.VITE_SERVER_URL || "http://localhost:1000"
 
-function App(){
+function App() {
 
   const dispatch = useDispatch()
-  useEffect(()=>{
-    
+  useEffect(() => {
+
     const getUser = async () => {
-      try{
-        const result = await axios.get(serverUrl + "/api/user/currentUser", {withCredentials: true})
+      try {
+        const result = await axios.get(serverUrl + "/api/user/currentUser", { withCredentials: true })
         dispatch(setUserData(result.data))
       }
-      catch (error)
-      {
+      catch (error) {
         console.log(error)
         dispatch(setUserData(null))
       }
@@ -34,12 +35,13 @@ function App(){
 
   return (
     <Routes>
-      <Route path='/' element={<Home/>}  />
-      <Route path='/auth' element={<Auth/>}  />
-      <Route path='/interview' element={<InterviewPage/>}  />
-      <Route path='/history' element={<InterviewHistory/>}  />
-      <Route path='/pricing' element={<Pricing/>}  />
-      <Route path='/report/:id' element={<InterviewReport/>}  />
+      <Route path='/' element={<Home />} />
+      <Route path='/auth' element={<Auth />} />
+      <Route path='/interview' element={<ProtectedRoute><InterviewPage /></ProtectedRoute>} />
+      <Route path='/history' element={<ProtectedRoute><InterviewHistory /></ProtectedRoute>} />
+      <Route path='/profile' element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route path='/pricing' element={<ProtectedRoute><Pricing /></ProtectedRoute>} />
+      <Route path='/report/:id' element={<ProtectedRoute><InterviewReport /></ProtectedRoute>} />
     </Routes>
   )
 }

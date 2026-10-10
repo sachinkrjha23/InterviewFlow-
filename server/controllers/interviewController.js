@@ -3,6 +3,34 @@ import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { askAi } from "../services/AiService.js";
 import Interview from "../models/interviewModel.js";
 import User from "../models/users.js";
+import mongoose from "mongoose";
+
+const clean = (v, max) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+const cleanList = (arr, maxItems, maxLen) =>
+  Array.isArray(arr)
+    ? arr
+        .slice(0, maxItems)
+        .map((x) => clean(String(x), maxLen))
+        .filter(Boolean)
+    : [];
+
+const parseQuestions = (text) =>
+  String(text)
+    .split("\n")
+    .map((l) =>
+      l
+        .trim()
+        .replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "")
+        .replace(/\*\*/g, "")
+        .trim(),
+    )
+    .filter(
+      (l) =>
+        l.length > 10 &&
+        !/:\s*$/.test(l) &&
+        !/^(here are|sure|certainly|below)/i.test(l),
+    )
+    .slice(0, 6);
 
 export const analyzeResume = async (req, res) => {
   try {
@@ -21,6 +49,14 @@ export const analyzeResume = async (req, res) => {
       resumeText += content.items.map((i) => i.str).join(" ") + "\n";
     }
     resumeText = resumeText.replace(/\s+/g, " ").trim();
+
+    if (resumeText.length < 50) {
+      fs.promises.unlink(filepath).catch(() => {});
+      return res.status(400).json({
+        message:
+          "Couldn't read text from this PDF. It may be a scanned/image PDF.",
+      });
+    }
 
     const messages = [
       {
@@ -42,7 +78,7 @@ Return ONLY valid JSON (no markdown, no explanations):
   "skills": ["skill1", "skill2"]
 }`,
       },
-      { role: "user", content: resumeText },
+      { role: "user", content: resumeText.slice(0, 12000) },
     ];
 
     const aiResponse = await askAi(messages);
@@ -82,37 +118,36 @@ Return ONLY valid JSON (no markdown, no explanations):
 
 export const generateQuestion = async (req, res) => {
   try {
-    let { role, experience, mode, resumeText, projects, skills } = req.body;
-
-    role = role?.trim();
-    experience = experience?.trim();
-    mode = mode?.trim();
+    const role = clean(req.body.role, 100);
+    const experience = clean(req.body.experience, 50);
+    const mode = clean(req.body.mode, 20);
 
     if (!role || !experience || !mode) {
       return res
         .status(400)
         .json({ message: "Role, Experience and Mode are required." });
     }
+    if (!["HR", "Technical"].includes(mode)) {
+      return res.status(400).json({ message: "Mode must be HR or Technical." });
+    }
+
+    const projectText =
+      cleanList(req.body.projects, 5, 100).join(", ") || "None";
+    const skillsText = cleanList(req.body.skills, 15, 50).join(", ") || "None";
+    const safeResume = clean(req.body.resumeText, 8000) || "None";
 
     const user = await User.findOneAndUpdate(
       { _id: req.userId, credits: { $gte: 50 } },
       { $inc: { credits: -50 } },
-      { new: true },
+      { returnDocument: "after" },
     );
     if (!user)
       return res
         .status(400)
         .json({ message: "Not enough credits. Minimum 50 required." });
 
-    await Interview.deleteMany({ userId: user._id, status: "Incomplete" });
-
-    const projectText =
-      Array.isArray(projects) && projects.length ? projects.join(", ") : "None";
-    const skillsText =
-      Array.isArray(skills) && skills.length ? skills.join(", ") : "None";
-    const safeResume = resumeText?.trim() || "None";
-
-    const userPrompt = `
+    try {
+      const userPrompt = `
 CANDIDATE:
 - Role: ${role}
 - Experience: ${experience}
@@ -120,9 +155,9 @@ CANDIDATE:
 - Projects: ${projectText}
 - Resume: ${safeResume}`;
 
-    const modeRules =
-      mode === "HR"
-        ? `Ask ONLY HR / behavioral / situational questions.
+      const modeRules =
+        mode === "HR"
+          ? `Ask ONLY HR / behavioral / situational questions.
 
 Q1 MUST be an introductory question like "Tell me about yourself" or "Walk me through your background."
 Q2 onwards: mix of behavioral, situational, and motivational questions.
@@ -135,7 +170,7 @@ Focus areas:
 - Communication and culture fit
 
 DO NOT ask about coding, DSA, frameworks, or technical concepts.`
-        : `Ask ONLY technical questions.
+          : `Ask ONLY technical questions.
 
 Q1 MUST be an easy warm-up on fundamentals related to the role (e.g. core concepts, basic definitions).
 Q2 onwards: dive into coding, algorithms, design patterns, or the listed skills/projects.
@@ -148,10 +183,10 @@ Focus areas:
 
 DO NOT ask behavioral questions like "tell me about yourself" or "strengths and weaknesses".`;
 
-    const messages = [
-      {
-        role: "system",
-        content: `You are an expert interviewer creating questions for a ${mode} interview.
+      const messages = [
+        {
+          role: "system",
+          content: `You are an expert interviewer creating questions for a ${mode} interview.
 
 TASK:
 Generate exactly 6 ${mode} interview questions.
@@ -182,30 +217,24 @@ What is your biggest strength? (generic, not specific)
 Can you explain X and also tell me how Y works? (two questions in one)
 
 Output ONLY the 6 questions, one per line.`,
-      },
-      { role: "user", content: userPrompt },
-    ];
+        },
+        { role: "user", content: userPrompt },
+      ];
 
-    const aiResponse = await askAi(messages);
-    if (!aiResponse?.trim()) {
-      return res.status(500).json({ message: "AI returned empty response." });
-    }
+      const aiResponse = await askAi(messages);
+      if (!aiResponse?.trim()) throw new Error("AI returned empty response.");
 
-    let questionsArray = aiResponse
-      .split("\n")
-      .map((q) => q.trim().replace(/^\d+[).\s-]+/, ""))
-      .filter((q) => q.length > 0)
-      .slice(0, 6);
+      let questionsArray = parseQuestions(aiResponse);
 
-    if (questionsArray.length < 6) {
-      console.warn(
-        `⚠️ Only got ${questionsArray.length} questions. Retrying...`,
-      );
+      if (questionsArray.length < 6) {
+        console.warn(
+          `Only got ${questionsArray.length} questions. Retrying...`,
+        );
 
-      const retry = await askAi([
-        {
-          role: "system",
-          content: `You are an expert interviewer. Output EXACTLY 6 interview questions.
+        const retry = await askAi([
+          {
+            role: "system",
+            content: `You are an expert interviewer. Output EXACTLY 6 interview questions.
 
 STRICT FORMAT:
 - One question per line.
@@ -216,27 +245,19 @@ STRICT FORMAT:
 ${modeRules}
 
 Output the 6 questions now:`,
-        },
-        { role: "user", content: userPrompt },
-      ]);
+          },
+          { role: "user", content: userPrompt },
+        ]);
 
-      questionsArray = retry
-        .split("\n")
-        .map((q) => q.trim().replace(/^\d+[).\s-]+/, ""))
-        .filter((q) => q.length > 0)
-        .slice(0, 6);
+        questionsArray = parseQuestions(retry);
+      }
 
-      console.log(`🔄 After retry: ${questionsArray.length} questions`);
-    }
+      if (questionsArray.length < 6) {
+        throw new Error(
+          `AI only generated ${questionsArray.length} questions. Please try again.`,
+        );
+      }
 
-    if (questionsArray.length < 6) {
-      return res.status(500).json({
-        message: `AI only generated ${questionsArray.length} questions. Please try again.`,
-      });
-    }
-
-    let interview;
-    try {
       const difficultyLevels = [
         "easy",
         "easy",
@@ -247,7 +268,7 @@ Output the 6 questions now:`,
       ];
       const timeLimits = [60, 60, 90, 120, 150, 180];
 
-      interview = await Interview.create({
+      const interview = await Interview.create({
         userId: user._id,
         role,
         experience,
@@ -259,21 +280,28 @@ Output the 6 questions now:`,
           timeLimit: timeLimits[index] || 120,
         })),
       });
-    } catch (dbError) {
-      user.credits += 50;
-      await user.save();
-      throw dbError;
-    }
 
-    return res.json({
-      interviewId: interview._id,
-      creditsLeft: user.credits,
-      userName: user.name,
-      role: interview.role,
-      experience: interview.experience,
-      mode: interview.mode,
-      questions: interview.questions,
-    });
+      await Interview.deleteMany({
+        userId: user._id,
+        status: "Incomplete",
+        _id: { $ne: interview._id },
+      });
+
+      return res.json({
+        interviewId: interview._id,
+        creditsLeft: user.credits,
+        userName: user.name,
+        role: interview.role,
+        experience: interview.experience,
+        mode: interview.mode,
+        questions: interview.questions,
+      });
+    } catch (error) {
+      await User.updateOne({ _id: user._id }, { $inc: { credits: 50 } }).catch(
+        console.error,
+      );
+      throw error;
+    }
   } catch (error) {
     console.error(error);
     return res
@@ -284,13 +312,19 @@ Output the 6 questions now:`,
 
 export const submitAnswers = async (req, res) => {
   try {
-    const { interviewId, questionIndex, answer, timeTaken } = req.body;
+    const { interviewId, questionIndex } = req.body;
+    const timeTaken = Math.max(0, Number(req.body.timeTaken) || 0);
+    const answer =
+      typeof req.body.answer === "string" ? req.body.answer.trim().slice(0, 5000) : "";
 
     if (!interviewId || questionIndex == null) {
       return res
         .status(400)
         .json({ message: "interviewId and questionIndex required." });
     }
+
+    if (!mongoose.isValidObjectId(interviewId))
+      return res.status(404).json({ message: "Interview not found." });
 
     const interview = await Interview.findById(interviewId);
     if (!interview)
@@ -304,7 +338,7 @@ export const submitAnswers = async (req, res) => {
     if (!question)
       return res.status(400).json({ message: "Invalid question index." });
 
-    if (question.answer && question.answer.trim()) {
+    if (question.submitted || (question.answer && question.answer.trim())) {
       return res
         .status(400)
         .json({ message: "This question has already been answered." });
@@ -317,6 +351,7 @@ export const submitAnswers = async (req, res) => {
       question.correctness = 0;
       question.feedback = "You did not submit an answer.";
       question.answer = "";
+      question.submitted = true;
       await interview.save();
       return res.json({
         feedback: question.feedback,
@@ -334,6 +369,7 @@ export const submitAnswers = async (req, res) => {
       question.correctness = 0;
       question.feedback = "Time limit exceeded. Answer not evaluated.";
       question.answer = answer;
+      question.submitted = true;
       await interview.save();
       return res.json({
         feedback: question.feedback,
@@ -412,12 +448,18 @@ Return ONLY valid JSON (no markdown):
       parsed = JSON.parse(match[0]);
     }
 
+    const clamp = (n) => Math.min(10, Math.max(0, Math.round(Number(n)) || 0));
+    const confidence = clamp(parsed.confidence);
+    const communication = clamp(parsed.communication);
+    const correctness = clamp(parsed.correctness);
+
     question.answer = answer;
-    question.confidence = parsed.confidence ?? 0;
-    question.communication = parsed.communication ?? 0;
-    question.correctness = parsed.correctness ?? 0;
-    question.score = parsed.finalscore ?? parsed.score ?? 0;
-    question.feedback = parsed.feedback || "";
+    question.confidence = confidence;
+    question.communication = communication;
+    question.correctness = correctness;
+    question.score = Math.round((confidence + communication + correctness) / 3);
+    question.feedback = String(parsed.feedback || "").slice(0, 300);
+    question.submitted = true;
 
     await interview.save();
 
@@ -442,6 +484,9 @@ export const finishInterview = async (req, res) => {
     if (!interviewId)
       return res.status(400).json({ message: "interviewId required." });
 
+    if (!mongoose.isValidObjectId(interviewId))
+      return res.status(404).json({ message: "Interview not found." });
+
     const interview = await Interview.findById(interviewId);
     if (!interview)
       return res.status(404).json({ message: "Interview not found." });
@@ -451,7 +496,7 @@ export const finishInterview = async (req, res) => {
     }
 
     const answeredCount = interview.questions.filter(
-      (q) => q.answer && q.answer.trim(),
+      (q) => q.submitted || (q.answer && q.answer.trim()),
     ).length;
 
     if (answeredCount < interview.questions.length) {
@@ -498,6 +543,8 @@ export const finishInterview = async (req, res) => {
       correctness: Number(avgCorrectness.toFixed(1)),
       questionWiseScore: interview.questions.map((q) => ({
         question: q.question,
+        answer: q.answer || "",
+        difficulty: q.difficulty,
         score: q.score || 0,
         feedback: q.feedback || "",
         confidence: q.confidence || 0,
@@ -530,8 +577,8 @@ export const getMyInterviews = async (req, res) => {
 export const getInterviewReport = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!id) {
-      return res.status(400).json({ message: "Interview ID required." });
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(404).json({ message: "Interview not found." });
     }
 
     const interview = await Interview.findById(id);
@@ -543,24 +590,12 @@ export const getInterviewReport = async (req, res) => {
       return res.status(403).json({ message: "Not your interview." });
     }
 
-    const totalQuestions = interview.questions.length;
-    let totalConfidence = 0;
-    let totalCommunication = 0;
-    let totalCorrectness = 0;
-
-    interview.questions.forEach((q) => {
-      totalConfidence += q.confidence || 0;
-      totalCommunication += q.communication || 0;
-      totalCorrectness += q.correctness || 0;
-    });
-
-    const avgConfidence = totalQuestions ? totalConfidence / totalQuestions : 0;
-    const avgCommunication = totalQuestions
-      ? totalCommunication / totalQuestions
-      : 0;
-    const avgCorrectness = totalQuestions
-      ? totalCorrectness / totalQuestions
-      : 0;
+    const answered = interview.questions.filter(
+      (q) => q.submitted || (q.answer && q.answer.trim()),
+    );
+    const n = answered.length;
+    const avg = (key) =>
+      n ? Number((answered.reduce((sum, q) => sum + (q[key] || 0), 0) / n).toFixed(1)) : 0;
 
     return res.status(200).json({
       interviewId: interview._id,
@@ -569,10 +604,10 @@ export const getInterviewReport = async (req, res) => {
       mode: interview.mode,
       status: interview.status,
       createdAt: interview.createdAt,
-      finalScore: Number(interview.finalScore.toFixed(1)),
-      confidence: Number(avgConfidence.toFixed(1)),
-      communication: Number(avgCommunication.toFixed(1)),
-      correctness: Number(avgCorrectness.toFixed(1)),
+      finalScore: avg("score"),
+      confidence: avg("confidence"),
+      communication: avg("communication"),
+      correctness: avg("correctness"),
       questionWiseScore: interview.questions.map((q) => ({
         question: q.question,
         answer: q.answer || "",

@@ -23,6 +23,9 @@ function Step2Interview({ interviewData, onFinish }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [voiceGender, setVoiceGender] = useState("male");
   const [subtitle, setSubtitle] = useState("");
+  const [voicesChecked, setVoicesChecked] = useState(false);
+  const [isFinishing, setIsFinishing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   const videoRef = useRef(null);
   const currentQuestion = localQuestions[currentIndex];
@@ -72,6 +75,23 @@ function Step2Interview({ interviewData, onFinish }) {
     window.speechSynthesis.onvoiceschanged = loadVoices;
   }, [voiceGender]);
 
+  // If the browser never provides any TTS voice, stop waiting after 2s
+  // and run the interview silently (text only) instead of hanging forever.
+  useEffect(() => {
+    const t = setTimeout(() => setVoicesChecked(true), 2000);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Refreshing mid-interview loses the session (and the credits), so warn first.
+  useEffect(() => {
+    const warn = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, []);
+
   const videoSource = voiceGender === "male" ? maleVoice : femaleVoice;
 
   const speakTest = (text) => {
@@ -93,7 +113,7 @@ function Step2Interview({ interviewData, onFinish }) {
 
       utterance.onstart = () => {
         setIsAIPlaying(true);
-        videoRef.current?.play();
+        videoRef.current?.play()?.catch(() => { });
       };
 
       utterance.onend = () => {
@@ -122,7 +142,7 @@ function Step2Interview({ interviewData, onFinish }) {
   };
 
   useEffect(() => {
-    if (!selectedVoice) return;
+    if (!selectedVoice && !voicesChecked) return;
 
     const runIntro = async () => {
       if (isIntroPhase) {
@@ -130,7 +150,7 @@ function Step2Interview({ interviewData, onFinish }) {
         spokenRef.current.intro = true;
 
         await speakTest(
-          `Hi ${userName}, it's great to meet you today. I hope you're feeling confident and ready.`
+          `Hi ${userName?.split(" ")[0] || "there"}, it's great to meet you today. I hope you're feeling confident and ready.`
         );
         await speakTest(
           `I'll ask you a few questions. Just answer naturally, and take your time. Let's begin.`
@@ -155,7 +175,7 @@ function Step2Interview({ interviewData, onFinish }) {
     };
 
     runIntro();
-  }, [selectedVoice, isIntroPhase, currentIndex]);
+  }, [selectedVoice, voicesChecked, isIntroPhase, currentIndex]);
 
   useEffect(() => {
     if (isIntroPhase) return;
@@ -183,6 +203,7 @@ function Step2Interview({ interviewData, onFinish }) {
     if (isSubmitting || feedback) return;
 
     setIsSubmitting(true);
+    setErrorMsg("");
 
     try {
       const result = await axios.post(
@@ -218,26 +239,32 @@ function Step2Interview({ interviewData, onFinish }) {
       speakTest(data.feedback || "");
     } catch (error) {
       console.error(error);
-      alert(error.response?.data?.message || "Failed to submit answer");
+      setErrorMsg(error.response?.data?.message || "Failed to submit answer");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleNext = async () => {
-    setAnswer("");
-    setFeedback("");
-
+    // On the last question, don't clear the UI first: if finishing fails,
+    // the feedback panel (and the Finish button) must stay so it can be retried.
     if (currentIndex + 1 >= localQuestions.length) {
       await finishInterview();
       return;
     }
 
+    setAnswer("");
+    setFeedback("");
+    setErrorMsg("");
     setCurrentIndex(currentIndex + 1);
     setTimeLeft(localQuestions[currentIndex + 1]?.timeLimit || 60);
   };
 
   const finishInterview = async () => {
+    if (isFinishing) return;
+    setIsFinishing(true);
+    setErrorMsg("");
+
     try {
       window.speechSynthesis.cancel();
       const result = await axios.post(
@@ -248,7 +275,9 @@ function Step2Interview({ interviewData, onFinish }) {
       onFinish(result.data);
     } catch (error) {
       console.error(error);
-      alert(error.response?.data?.message || "Failed to finish interview");
+      setErrorMsg(error.response?.data?.message || "Failed to finish interview");
+    } finally {
+      setIsFinishing(false);
     }
   };
 
@@ -377,7 +406,7 @@ function Step2Interview({ interviewData, onFinish }) {
 
         <div className="flex-1 flex flex-col p-4 sm:p-6 md:p-8 relative">
           <h2 className="text-xl sm:text-2xl font-bold text-emerald-600 mb-6">
-            AI Smart Interview
+            AI Mock Interview
           </h2>
 
           {!isIntroPhase && (
@@ -403,6 +432,12 @@ function Step2Interview({ interviewData, onFinish }) {
                        focus:ring-emerald-500 transition text-gray-800
                        disabled:opacity-60 disabled:cursor-not-allowed"
           />
+
+          {errorMsg && (
+            <p className="mt-4 text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+              {errorMsg}
+            </p>
+          )}
 
           {!feedback ? (
             <div className="flex items-center gap-4 mt-6">
@@ -452,14 +487,18 @@ function Step2Interview({ interviewData, onFinish }) {
 
               <motion.button
                 onClick={handleNext}
+                disabled={isFinishing}
                 whileTap={{ scale: 0.97 }}
                 className="w-full bg-gradient-to-r from-emerald-600 to-teal-500
                            text-white py-3 rounded-xl shadow-md hover:opacity-90
-                           transition flex items-center justify-center gap-2 font-semibold"
+                           transition flex items-center justify-center gap-2 font-semibold
+                           disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {currentIndex + 1 < localQuestions.length
-                  ? "Next Question"
-                  : "Finish Interview"}
+                {isFinishing
+                  ? "Finishing..."
+                  : currentIndex + 1 < localQuestions.length
+                    ? "Next Question"
+                    : "Finish Interview"}
                 <BsArrowRight size={18} />
               </motion.button>
             </motion.div>

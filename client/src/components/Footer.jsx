@@ -20,8 +20,8 @@ function Footer() {
             </span>
           </div>
           <p className="text-xs text-gray-500 leading-relaxed">
-            AI-powered mock interviews with smart follow-ups, confidence
-            analysis, and downloadable performance reports.
+            AI-powered mock interviews with spoken questions, scored
+            feedback, and downloadable performance reports.
           </p>
         </div>
 

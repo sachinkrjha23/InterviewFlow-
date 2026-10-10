@@ -1,4 +1,4 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema({
 
@@ -9,11 +9,33 @@ const userSchema = new mongoose.Schema({
     email:{
         type:String,
         unique:true,
-        required:true
+        required:true,
+        lowercase:true,
+        trim:true
     },
     credits:{
         type:Number,
-        default: 150
+        default: 150,
+        min: 0
+    },
+    photo:{
+        type:String,
+        default: ""
+    },
+    avatar:{
+        type:String,
+        default: ""
+    },
+    avatarPublicId:{
+        type:String,
+        default: "",
+        select: false
+    },
+    googleUid:{
+        type:String,
+        unique: true,
+        sparse: true,
+        select: false
     }
 
 }, {timestamps:true})

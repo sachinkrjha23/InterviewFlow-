@@ -7,22 +7,28 @@ import cors from "cors"
 import authRouter from "./routes/authRouter.js";
 import userRouter from "./routes/userRouter.js";
 import interviewRouter from "./routes/interviewRouter.js";
+import paymentRouter from "./routes/paymentRouter.js";
 
 const app = express();
-app.use(cors(
-    {
-       origin: "http://localhost:5173",
-       credentials: true
-    }
-));
 
-app.use(express.json());
+app.set("trust proxy", 1);
+app.use(cors({
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    credentials: true
+}));
+
+app.use(express.json({
+    verify: (req, res, buf) => {
+        req.rawBody = buf; 
+    },
+}));
 app.use(cookieParser());
 
 
 app.use("/api/auth", authRouter)
 app.use("/api/user", userRouter)
 app.use("/api/interview", interviewRouter)
+app.use("/api/payment", paymentRouter)
 
 
 const PORT = process.env.PORT || 1500;

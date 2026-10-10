@@ -7,6 +7,7 @@ import { FaArrowLeft, FaArrowRight } from "react-icons/fa";
 function InterviewHistory() {
   const [interviews, setInterviews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -19,6 +20,7 @@ function InterviewHistory() {
         setInterviews(result.data || []);
       } catch (error) {
         console.log(error);
+        setError(error.response?.data?.message || "Failed to load interviews");
       } finally {
         setLoading(false);
       }
@@ -54,6 +56,10 @@ function InterviewHistory() {
         {loading ? (
           <div className="text-center text-gray-400 py-20">
             Loading interviews...
+          </div>
+        ) : error ? (
+          <div className="bg-white rounded-2xl border border-red-200 p-12 text-center text-red-500 shadow-sm">
+            {error}
           </div>
         ) : interviews.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center shadow-sm">
@@ -110,7 +116,7 @@ function InterviewHistory() {
                   <div className="flex items-center gap-4 shrink-0">
                     <div className="text-right">
                       <p className="text-2xl font-bold text-emerald-600 leading-none">
-                        {item.finalScore != null
+                        {isComplete && item.finalScore != null
                           ? Number(item.finalScore).toFixed(1)
                           : "—"}
                       </p>
