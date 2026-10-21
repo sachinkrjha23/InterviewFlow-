@@ -1,94 +1,78 @@
-import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { serverUrl } from "../App";
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import axios from "axios";
+import Navbar from "../components/Navbar";
 import Step3Report from "../components/Step3Report";
-import { FaSpinner, FaArrowLeft } from "react-icons/fa";
+import { serverUrl } from "../config";
 
 function InterviewReport() {
   const { id } = useParams();
-  const navigate = useNavigate();
-
   const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    if (!id) return;
-
-    const fetchReport = async () => {
-      try {
-        const result = await axios.get(
-          `${serverUrl}/api/interview/report/${id}`,
-          { withCredentials: true }
-        );
-        setReport(result.data);
-      } catch (err) {
-        console.log(err);
-        setError(err.response?.data?.message || "Failed to load report");
-      }
+    let cancelled = false;
+    axios
+      .get(`${serverUrl}/api/interview/report/${id}`, { withCredentials: true })
+      .then((result) => {
+        if (!cancelled) setReport(result.data);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.response?.data?.message || "Couldn't load this report.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
     };
+  }, [id, attempt]);
 
-    fetchReport();
-  }, [id]);
+  const retry = () => {
+    setError("");
+    setLoading(true);
+    setAttempt((n) => n + 1);
+  };
 
-  // ─── Error state ───
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-emerald-50/40
-                      flex items-center justify-center px-6">
-        <div className="bg-white rounded-3xl border border-gray-200
-                        shadow-xl p-10 max-w-md w-full text-center">
-          <div className="w-16 h-16 mx-auto rounded-full bg-red-50
-                          flex items-center justify-center mb-5">
-            <span className="text-3xl">⚠️</span>
-          </div>
+  return (
+    <div className="min-h-screen bg-canvas">
+      <Navbar />
 
-          <h2 className="text-xl font-bold text-gray-900 mb-2">
-            Report Unavailable
-          </h2>
-          <p className="text-sm text-gray-500 mb-6">{error}</p>
-
-          <button
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-2 bg-black text-white
-                       px-6 py-3 rounded-full font-semibold text-sm
-                       hover:opacity-90 transition"
-          >
-            <FaArrowLeft size={12} />
-            Go Back
-          </button>
+      {loading && (
+        <div className="mx-auto w-full max-w-5xl space-y-4 px-4 py-8 sm:px-6" role="status" aria-label="Loading report">
+          <div className="h-8 w-64 animate-pulse rounded-lg bg-line" />
+          <div className="h-52 animate-pulse rounded-2xl bg-line" />
+          <div className="h-40 animate-pulse rounded-2xl bg-line" />
         </div>
-      </div>
-    );
-  }
+      )}
 
-  // ─── Loading state ───
-  if (!report) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-emerald-50/40
-                      flex items-center justify-center px-6">
-        <div className="text-center">
-          <div className="relative w-20 h-20 mx-auto mb-6">
-            <div className="absolute inset-0 rounded-full border-4 border-emerald-100" />
-            <div className="absolute inset-0 rounded-full border-4 border-transparent
-                            border-t-emerald-600 animate-spin" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <FaSpinner className="text-emerald-600 animate-spin" size={20} />
-            </div>
+      {!loading && error && (
+        <div className="mx-auto w-full max-w-md px-6 py-20 text-center">
+          <h1 className="text-xl font-medium text-ink">We couldn't open this report</h1>
+          <p className="mt-2 text-sm text-muted">{error}</p>
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={retry}
+              className="rounded-lg bg-indigo px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+            >
+              Try again
+            </button>
+            <Link
+              to="/history"
+              className="rounded-lg border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-ink hover:bg-canvas"
+            >
+              Back to history
+            </Link>
           </div>
-
-          <h2 className="text-lg font-semibold text-gray-800 mb-1">
-            Analyzing your interview
-          </h2>
-          <p className="text-sm text-gray-500">
-            Gathering scores and feedback...
-          </p>
         </div>
-      </div>
-    );
-  }
+      )}
 
-  return <Step3Report report={report} />;
+      {!loading && !error && report && <Step3Report report={report} interviewId={id} />}
+    </div>
+  );
 }
 
 export default InterviewReport;

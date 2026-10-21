@@ -4,14 +4,17 @@ const userSchema = new mongoose.Schema({
 
     name:{
         type:String,
-        required: true
+        required: true,
+        trim: true,
+        maxlength: 60
     },
     email:{
         type:String,
         unique:true,
         required:true,
         lowercase:true,
-        trim:true
+        trim:true,
+        maxlength: 254
     },
     credits:{
         type:Number,
@@ -20,11 +23,13 @@ const userSchema = new mongoose.Schema({
     },
     photo:{
         type:String,
-        default: ""
+        default: "",
+        maxlength: 500
     },
     avatar:{
         type:String,
-        default: ""
+        default: "",
+        maxlength: 500
     },
     avatarPublicId:{
         type:String,

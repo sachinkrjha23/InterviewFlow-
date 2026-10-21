@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import Navbar from "../components/Navbar";
 import AuthModel from "../components/AuthModel";
 import { useSelector } from "react-redux";
@@ -41,7 +41,7 @@ function Home() {
       icon: <BsMic size={22} />,
       step: "STEP 2",
       title: "AI Voice Interviewer",
-      desc: "Questions and feedback are spoken aloud while you type your answers.",
+      desc: "Questions and feedback are spoken aloud. Answer by typing or by voice.",
       color: "from-green-500 to-emerald-400",
       ring: "ring-green-100",
     },
@@ -60,19 +60,19 @@ function Home() {
       image: evalImg,
       icon: <BsBarChart size={20} />,
       title: "AI Answer Evaluation",
-      desc: "Scores communication, technical accuracy and confidence.",
+      desc: "Scores communication, technical accuracy and confidence, with follow-up questions when needed.",
     },
     {
       image: resumeImg,
       icon: <BsFileEarmark size={20} />,
-      title: "Resume Based Interview",
-      desc: "Project-specific questions based on your uploaded resume.",
+      title: "Resume & Job Based Interview",
+      desc: "Questions based on your resume or a pasted job description. The free Resume tailor adapts your resume to a job.",
     },
     {
       image: pdfImg,
       icon: <BsFileEarmarkText size={20} />,
       title: "Downloadable PDF Report",
-      desc: "Download a full report with scores, your answers, and feedback.",
+      desc: "Download a full report with scores, your answers, feedback and speaking delivery.",
     },
     {
       image: analyticsImg,
@@ -97,15 +97,15 @@ function Home() {
     },
     {
       image: confidenceImg,
-      icon: <BsBarChart  size={20} />,
-      title: "Confidence Scoring",
-      desc: "Rated from how clear and assertive your written answers are."
+      icon: <BsBarChart size={20} />,
+      title: "Answer Scoring",
+      desc: "Each answer is scored out of 10 on confidence, communication and correctness."
     },
     {
       image: creditImg,
       icon: <BsFileEarmarkText size={20} />,
       title: "Credit System",
-      desc: "Each interview uses 50 credits; new accounts start with 150."
+      desc: "Each interview uses 50 credits; new accounts start with 150. The Resume tailor is free."
     },
   ];
 
@@ -169,18 +169,11 @@ function Home() {
                   if (!userData) return setShowAuth(true);
                   navigate("/interview");
                 }}
-                whileHover={{ scale: 1.05 }}
+                whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
-                className="relative overflow-hidden bg-black text-white px-8 py-3 rounded-full
-                          shadow-lg shadow-black/10 hover:shadow-xl hover:shadow-black/20
-                          transition-all duration-300 group"
+                className="rounded-lg bg-indigo px-8 py-3 text-sm font-medium text-white hover:opacity-90"
               >
-                <span className="relative z-10">Start Interview</span>
-                <span
-                  className="absolute inset-0 rounded-full bg-gradient-to-r
-                                from-emerald-500 to-green-500 opacity-0
-                                group-hover:opacity-100 transition-opacity duration-300"
-                />
+                Start Interview
               </motion.button>
 
               <motion.button
@@ -188,11 +181,9 @@ function Home() {
                   if (!userData) return setShowAuth(true);
                   navigate("/history");
                 }}
-                whileHover={{ scale: 1.05 }}
+                whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
-                className="border border-gray-300 bg-white/80 backdrop-blur
-                          px-8 py-3 rounded-full hover:bg-white
-                          hover:border-gray-400 transition-all duration-300"
+                className="rounded-lg border border-line-strong bg-surface px-8 py-3 text-sm font-medium text-ink hover:bg-canvas"
               >
                 View Interview History
               </motion.button>
@@ -207,11 +198,10 @@ function Home() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.3 }}
                 transition={{ duration: 0.6, delay: index * 0.15 }}
-                whileHover={{ rotate: 0, scale: 1.06, y: -6 }}
                 className={`
                   relative bg-white rounded-3xl border-2 border-green-100
-                  hover:border-green-500 p-6 pt-10 w-64 max-w-[90%]
-                  shadow-md hover:shadow-2xl transition-all duration-300
+                  p-6 pt-10 w-64 max-w-[90%]
+                  shadow-md transition-all duration-300
                   ${index === 0 ? "rotate-[-4deg]" : ""}
                   ${index === 1 ? "rotate-[3deg] md:-mt-6 shadow-xl" : ""}
                   ${index === 2 ? "rotate-[-3deg]" : ""}
@@ -258,16 +248,14 @@ function Home() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, amount: 0.2 }}
                   transition={{ duration: 0.5, delay: index * 0.1 }}
-                  whileHover={{ y: -6, scale: 1.02 }}
-                  className="bg-white border border-gray-100 rounded-2xl p-6
-                   shadow-sm hover:shadow-xl hover:border-green-100
-                   transition-all duration-300"
+                  className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm"
                 >
                   <div className="flex flex-col md:flex-row items-center gap-5">
                     <div className="w-full md:w-1/2 flex justify-center">
                       <img
                         src={item.image}
                         alt={item.title}
+                        loading="lazy"
                         className="w-full h-auto object-contain max-h-40"
                       />
                     </div>
@@ -301,7 +289,7 @@ function Home() {
               transition={{ duration: 0.6 }}
               className="text-3xl sm:text-4xl font-semibold text-center mb-16 text-gray-900"
             >
-              Multiple Interview <span className="text-green-600">Modes</span>
+              Interview <span className="text-green-600">Modes and Features</span>
             </motion.h2>
 
             <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
@@ -312,16 +300,14 @@ function Home() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, amount: 0.2 }}
                   transition={{ duration: 0.5, delay: index * 0.1 }}
-                  whileHover={{ y: -6, scale: 1.02 }}
-                  className="bg-white border border-gray-100 rounded-2xl p-6
-                   shadow-sm hover:shadow-xl hover:border-green-100
-                   transition-all duration-300"
+                  className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm"
                 >
                   <div className="flex flex-col md:flex-row items-center gap-5">
                     <div className="w-full md:w-1/2 flex justify-center">
                       <img
                         src={item.image}
                         alt={item.title}
+                        loading="lazy"
                         className="w-full h-auto object-contain max-h-40"
                       />
                     </div>
@@ -350,7 +336,7 @@ function Home() {
         </div>
       </section>
 
-      <Footer/>
+      <Footer />
 
       {showAuth && <AuthModel onClose={() => setShowAuth(false)} />}
 

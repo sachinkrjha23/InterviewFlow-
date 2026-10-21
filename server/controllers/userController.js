@@ -2,6 +2,7 @@ import User from "../models/users.js";
 import { uploadAvatar, deleteAvatar } from "../config/cloudinary.js";
 import { getAdminAuth } from "../config/firebaseAdmin.js";
 import { publicUser } from "../utils/publicUser.js";
+import { sendServerError } from "../utils/sendError.js";
 
 export const getCurrentUser = async (req, res) => {
   try {
@@ -12,9 +13,7 @@ export const getCurrentUser = async (req, res) => {
 
     return res.status(200).json(publicUser(user));
   } catch (error) {
-    return res
-      .status(500)
-      .json({ message: `Failed to fetch this user ${error}` });
+    return sendServerError(res, error, "Failed to fetch your profile.");
   }
 };
 
@@ -34,9 +33,7 @@ export const updateProfile = async (req, res) => {
 
     return res.status(200).json(publicUser(user));
   } catch (error) {
-    return res
-      .status(500)
-      .json({ message: `Failed to update profile: ${error.message}` });
+    return sendServerError(res, error, "Failed to update profile.");
   }
 };
 
@@ -58,10 +55,7 @@ export const uploadProfilePhoto = async (req, res) => {
 
     return res.status(200).json(publicUser(user));
   } catch (error) {
-    console.error(error);
-    return res
-      .status(500)
-      .json({ message: `Failed to upload photo: ${error.message}` });
+    return sendServerError(res, error, "Failed to upload photo.");
   }
 };
 
@@ -79,10 +73,7 @@ export const removeProfilePhoto = async (req, res) => {
 
     return res.status(200).json(publicUser(user));
   } catch (error) {
-    console.error(error);
-    return res
-      .status(500)
-      .json({ message: `Failed to remove photo: ${error.message}` });
+    return sendServerError(res, error, "Failed to remove photo.");
   }
 };
 
@@ -168,7 +159,6 @@ export const changeSignInEmail = async (req, res) => {
           "That Google account already has its own InterviewFlow profile, so it can't be used here.",
       });
     }
-    console.error(error);
     return res.status(500).json({ message: "Couldn't change your email." });
   }
 };

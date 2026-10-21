@@ -1,33 +1,35 @@
-import React, { useEffect } from "react"
-import { useSelector } from "react-redux"
-import { FaTimes } from "react-icons/fa"
-import Auth from "../pages/Auth"
+import { useEffect, useRef } from "react";
+import { useSelector } from "react-redux";
+import { FaTimes } from "react-icons/fa";
+import Modal from "./Modal";
+import SignInCard from "./SignInCard";
 
+function AuthModel({ onClose }) {
+  const { userData } = useSelector((state) => state.user);
+  const onCloseRef = useRef(onClose);
 
-function AuthModel({onClose}) {
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
-    const {userData} = useSelector((state)=>state.user)
-
-    useEffect(()=>{
-        if(userData)
-        {
-            onClose()
-        }
-    },[userData, onClose])
+  // close as soon as sign-in succeeds
+  useEffect(() => {
+    if (userData) onCloseRef.current();
+  }, [userData]);
 
   return (
-
-    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/10 backdrop-blur-sm px-4">
-        <div className="relative w-full max-w-md">
-
-            <button onClick={onClose} className="absolute top-8 right-5 text-gray-800 hover:text-black text-xl">
-                <FaTimes size={18}/>
-            </button>
-            <Auth isModel={true}/>
-
-        </div>
-    </div>
-  )
+    <Modal onClose={onClose} labelledBy="signin-title">
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close sign-in"
+        className="absolute right-3 top-3 z-10 rounded-md p-1.5 text-muted hover:bg-canvas hover:text-ink"
+      >
+        <FaTimes size={16} aria-hidden="true" />
+      </button>
+      <SignInCard />
+    </Modal>
+  );
 }
 
-export default AuthModel
+export default AuthModel;

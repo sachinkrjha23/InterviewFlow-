@@ -1,5 +1,5 @@
 import express from "express";
-import rateLimit from "express-rate-limit";
+import { userLimiter } from "../middleware/userLimiter.js";
 import isAuth from "../middleware/isAuth.js";
 import {
   getPacks,
@@ -11,10 +11,10 @@ import {
 
 const paymentRouter = express.Router();
 
-const orderLimiter = rateLimit({
+const orderLimiter = userLimiter({
   windowMs: 60 * 1000,
   limit: 10,
-  message: { message: "Too many attempts, please slow down." },
+  message: "Too many attempts, please slow down.",
 });
 
 paymentRouter.post("/webhook", razorpayWebhook);

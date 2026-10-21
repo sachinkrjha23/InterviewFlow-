@@ -1,40 +1,47 @@
-import React, { useState } from "react";
-import { motion } from "motion/react";
-import { useNavigate } from "react-router-dom";
-import {
-  FaArrowLeft,
-  FaTrophy,
-  FaCheckCircle,
-  FaLightbulb,
-  FaCommentDots,
-  FaChartLine,
-  FaDownload,
-  FaSpinner,
-} from "react-icons/fa";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from "recharts";
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { AnimatePresence, motion } from "motion/react";
+import { FaArrowLeft, FaChevronDown, FaDownload } from "react-icons/fa";
+import ScoreChart from "./ScoreChart";
 import { generateReportPdf } from "../utils/generateReportPdf";
+import { fetchModelAnswers } from "../utils/reportApi";
+import { deliverySummary, paceLabel, summarizeDelivery } from "../utils/delivery";
 
-function Step3Report({ report }) {
-  const navigate = useNavigate();
+const toneFor = (score) =>
+  score >= 7
+    ? { soft: "bg-teal-soft", text: "text-teal-deep", stroke: "stroke-teal" }
+    : score >= 4
+      ? { soft: "bg-amber-soft", text: "text-amber-deep", stroke: "stroke-amber" }
+      : { soft: "bg-rose-soft", text: "text-rose-deep", stroke: "stroke-rose" };
+
+const gradeFor = (score) =>
+  score >= 9 ? "Outstanding" : score >= 8 ? "Excellent" : score >= 7 ? "Good" : score >= 5 ? "Average" : "Needs work";
+
+const METRICS = [
+  { key: "confidence", label: "Confidence", tile: "bg-sky-soft text-sky-deep", bar: "bg-sky" },
+  { key: "communication", label: "Communication", tile: "bg-violet-soft text-violet-deep", bar: "bg-violet" },
+  { key: "correctness", label: "Correctness", tile: "bg-teal-soft text-teal-deep", bar: "bg-teal" },
+];
+
+const MODEL_ERROR = "Couldn't prepare the model answer. Please try again.";
+
+const SPRING = { type: "spring", stiffness: 400, damping: 17 };
+
+function Step3Report({ report, interviewId, onRestart }) {
+  const [modelAnswers, setModelAnswers] = useState(() => {
+    const initial = {};
+    (report?.questionWiseScore || []).forEach((q, i) => {
+      if (q.modelAnswer) initial[q.index ?? i] = q.modelAnswer;
+    });
+    return initial;
+  });
+  const [open, setOpen] = useState({});
+  const [loadingKey, setLoadingKey] = useState(null);
+  const [errors, setErrors] = useState({});
   const [downloading, setDownloading] = useState(false);
-  const [pdfError, setPdfError] = useState("");
+  const [pdfNote, setPdfNote] = useState("");
 
-  if (!report) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500 text-lg">Loading Report...</p>
-      </div>
-    );
-  }
+  if (!report) return null;
 
   const {
     role,
@@ -42,31 +49,22 @@ function Step3Report({ report }) {
     mode,
     createdAt,
     finalScore = 0,
-    confidence = 0,
-    communication = 0,
-    correctness = 0,
     questionWiseScore = [],
   } = report;
 
-  const metrics = [
-    { label: "Confidence", value: confidence, icon: <FaLightbulb /> },
-    { label: "Communication", value: communication, icon: <FaCommentDots /> },
-    { label: "Correctness", value: correctness, icon: <FaCheckCircle /> },
-  ];
-
-  const chartData = questionWiseScore.map((q, index) => ({
-    name: `Q${index + 1}`,
-    score: q.score ?? 0,
-  }));
-
+  const id = interviewId || report.interviewId;
   const isIncomplete = report.status === "Incomplete";
-  let performanceText = "";
-  let shortTagline = "";
+  const overall = toneFor(Number(finalScore));
+  const questions = questionWiseScore.map((q, i) => ({ ...q, key: q.index ?? i }));
+  const allPrepared = questions.length > 0 && questions.every((q) => modelAnswers[q.key]);
+  const allOpen = allPrepared && questions.every((q) => open[q.key]);
+  const busy = loadingKey !== null;
 
+  let performanceText;
+  let shortTagline;
   if (isIncomplete) {
     performanceText = "Interview not finished";
-    shortTagline =
-      "This session wasn't completed, so scores only reflect the questions you answered.";
+    shortTagline = `You answered ${questions.length} of ${report.totalQuestions || 6} questions, so scores only reflect those.`;
   } else if (finalScore >= 8) {
     performanceText = "Strong performance.";
     shortTagline = "Clear, well-structured answers.";
@@ -78,416 +76,379 @@ function Step3Report({ report }) {
     shortTagline = "Focus on clarity, structure and confidence.";
   }
 
-  const getScoreColor = (score) => {
-    if (score >= 8) return "text-emerald-600";
-    if (score >= 6) return "text-blue-600";
-    if (score >= 4) return "text-amber-500";
-    return "text-red-500";
-  };
+  // numbering that skips follow-ups: Question 1, Question 2, Follow-up, Question 3 ...
+  let mainCount = 0;
+  const labels = questions.map((q) =>
+    q.isFollowUp
+      ? { long: "Follow-up", short: `Q${mainCount}+` }
+      : { long: `Question ${++mainCount}`, short: `Q${mainCount}` },
+  );
+  const chartData = questions.map((q, i) => ({ name: labels[i].short, score: q.score ?? 0 }));
+  const delivery = summarizeDelivery(questions);
 
-  const getScoreBg = (score) => {
-    if (score >= 8) return "bg-emerald-50 border-emerald-200";
-    if (score >= 6) return "bg-blue-50 border-blue-200";
-    if (score >= 4) return "bg-amber-50 border-amber-200";
-    return "bg-red-50 border-red-200";
-  };
-
-  const getGrade = (score) => {
-    if (score >= 9) return "Outstanding";
-    if (score >= 8) return "Excellent";
-    if (score >= 7) return "Good";
-    if (score >= 5) return "Average";
-    return "Needs Work";
-  };
-
-  const getBarColor = (score) => {
-    if (score >= 8) return "#10b981";
-    if (score >= 6) return "#3b82f6";
-    if (score >= 4) return "#f59e0b";
-    return "#ef4444";
-  };
-
-  const handleDownloadPdf = () => {
+  const toggleModelAnswer = async (key) => {
+    if (loadingKey !== null) return;
+    if (modelAnswers[key]) {
+      setOpen((prev) => ({ ...prev, [key]: !prev[key] }));
+      return;
+    }
+    setErrors((prev) => ({ ...prev, [key]: "" }));
+    setLoadingKey(key);
     try {
-      setPdfError("");
-      setDownloading(true);
-      generateReportPdf(report);
-    } catch (err) {
-      console.error(err);
-      setPdfError("Failed to generate PDF. Please try again.");
+      const result = await fetchModelAnswers(id, key);
+      if (result[key]) {
+        setModelAnswers((prev) => ({ ...prev, ...result }));
+        setOpen((prev) => ({ ...prev, [key]: true }));
+      } else {
+        setErrors((prev) => ({ ...prev, [key]: MODEL_ERROR }));
+      }
+    } catch (error) {
+      setErrors((prev) => ({ ...prev, [key]: error.response?.data?.message || MODEL_ERROR }));
     } finally {
-      setTimeout(() => setDownloading(false), 800);
+      setLoadingKey(null);
     }
   };
 
-  const buttonSpring = { type: "spring", stiffness: 400, damping: 17 };
+  const toggleAll = async () => {
+    if (loadingKey !== null) return;
+    if (allPrepared) {
+      const next = !allOpen;
+      setOpen(Object.fromEntries(questions.map((q) => [q.key, next])));
+      return;
+    }
+    setErrors({});
+    setLoadingKey("all");
+    try {
+      const result = await fetchModelAnswers(id);
+      setModelAnswers((prev) => ({ ...prev, ...result }));
+      setOpen(Object.fromEntries(questions.filter((q) => result[q.key]).map((q) => [q.key, true])));
+    } catch (error) {
+      setErrors({ all: error.response?.data?.message || MODEL_ERROR });
+    } finally {
+      setLoadingKey(null);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    setPdfNote("");
+
+    let answers = modelAnswers;
+    if (!allPrepared && id) {
+      try {
+        const result = await fetchModelAnswers(id);
+        answers = { ...modelAnswers, ...result };
+        setModelAnswers(answers);
+      } catch {
+        setPdfNote("Some model answers couldn't be prepared, so the PDF is missing them.");
+      }
+    }
+
+    try {
+      await generateReportPdf({
+        ...report,
+        questionWiseScore: questions.map((q) => ({ ...q, modelAnswer: answers[q.key] || "" })),
+      });
+    } catch {
+      setPdfNote("Failed to generate the PDF. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const actionButton =
+    "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-emerald-50/40 py-10 px-4 sm:px-6">
-      <div className="max-w-5xl mx-auto">
+    <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+      <Link to="/history" className="inline-flex items-center gap-2 text-sm font-medium text-muted hover:text-ink">
+        <FaArrowLeft size={12} aria-hidden="true" />
+        Back to history
+      </Link>
 
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-start gap-4 mb-8 flex-wrap"
-        >
-          <motion.button
-            whileHover={{ scale: 1.08, x: -2 }}
-            whileTap={{ scale: 0.94 }}
-            transition={buttonSpring}
-            onClick={() => navigate(-1)}
-            className="mt-1 p-3 rounded-full bg-white border border-gray-200
-                       text-gray-700 shadow-sm hover:shadow-md
-                       hover:bg-gray-50 transition-colors"
-          >
-            <FaArrowLeft size={14} />
-          </motion.button>
-
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Interview Report
-            </h1>
-            <p className="text-gray-500 mt-1">
-              {role} · {experience} · {mode} mode
-              {createdAt && (
-                <>
-                  {" · "}
-                  {new Date(createdAt).toLocaleDateString("en-IN", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })}
-                </>
-              )}
-            </p>
+      <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-medium text-ink">{role || "Interview report"}</h1>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted">
+            {experience && <span>{experience}</span>}
+            {mode && (
+              <span
+                className={`rounded-md px-2 py-0.5 text-xs font-medium ${
+                  mode === "HR" ? "bg-violet-soft text-violet-deep" : "bg-indigo-soft text-indigo-deep"
+                }`}
+              >
+                {mode}
+              </span>
+            )}
+            {createdAt && (
+              <span>
+                {new Date(createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+              </span>
+            )}
           </div>
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="bg-white rounded-3xl border border-gray-200 shadow-lg p-8 mb-6
-                     flex flex-col md:flex-row items-center gap-8
-                     hover:shadow-xl transition-shadow"
-        >
-          <div className="relative w-40 h-40 flex-shrink-0">
-            <svg className="w-40 h-40 -rotate-90" viewBox="0 0 160 160">
+        <div className="flex flex-wrap gap-3">
+          <motion.button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={downloading}
+            whileHover={downloading ? undefined : { scale: 1.03 }}
+            whileTap={downloading ? undefined : { scale: 0.97 }}
+            transition={SPRING}
+            className={`${actionButton} bg-indigo text-white hover:opacity-90`}
+          >
+            <FaDownload size={13} aria-hidden="true" />
+            {downloading ? "Preparing PDF…" : "Download PDF"}
+          </motion.button>
+          {onRestart ? (
+            <motion.button
+              type="button"
+              onClick={onRestart}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              transition={SPRING}
+              className={`${actionButton} border border-line-strong bg-surface text-ink hover:bg-canvas`}
+            >
+              New interview
+            </motion.button>
+          ) : (
+            <Link to="/interview" className={`${actionButton} border border-line-strong bg-surface text-ink hover:bg-canvas`}>
+              New interview
+            </Link>
+          )}
+        </div>
+      </div>
+
+      {pdfNote && (
+        <p role="alert" className="mt-4 rounded-lg bg-amber-soft px-4 py-3 text-sm text-amber-deep">
+          {pdfNote}
+        </p>
+      )}
+
+      {isIncomplete && (
+        <p className="mt-4 rounded-lg bg-amber-soft px-4 py-3 text-sm text-amber-deep">
+          This interview wasn't finished. Scores only reflect the questions you answered.
+        </p>
+      )}
+
+      <motion.section
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="mt-6 rounded-2xl border border-line bg-surface p-6"
+      >
+        <div className="flex flex-col items-center gap-8 md:flex-row">
+          <div className="relative h-36 w-36 shrink-0">
+            <svg className="h-36 w-36 -rotate-90" viewBox="0 0 160 160" aria-hidden="true">
+              <circle cx="80" cy="80" r="70" className="fill-none stroke-line" strokeWidth="12" />
               <circle
                 cx="80"
                 cy="80"
                 r="70"
-                stroke="#f3f4f6"
+                className={`fill-none ${overall.stroke}`}
                 strokeWidth="12"
-                fill="none"
-              />
-              <motion.circle
-                cx="80"
-                cy="80"
-                r="70"
-                stroke="url(#grad)"
-                strokeWidth="12"
-                fill="none"
                 strokeLinecap="round"
-                initial={{ strokeDasharray: "0 440" }}
-                animate={{
-                  strokeDasharray: `${(finalScore / 10) * 440} 440`,
-                }}
-                transition={{ duration: 1.2, ease: "easeOut", delay: 0.3 }}
+                strokeDasharray={`${(Math.max(0, Math.min(10, finalScore)) / 10) * 440} 440`}
               />
-              <defs>
-                <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#10b981" />
-                  <stop offset="100%" stopColor="#14b8a6" />
-                </linearGradient>
-              </defs>
             </svg>
-
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <motion.span
-                initial={{ opacity: 0, scale: 0.6 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.6, type: "spring", stiffness: 200 }}
-                className="text-4xl font-bold text-gray-900"
-              >
-                {Number(finalScore).toFixed(1)}
-              </motion.span>
-              <span className="text-xs text-gray-400 uppercase tracking-wide">
-                out of 10
-              </span>
+              <span className="text-4xl font-medium text-ink">{Number(finalScore).toFixed(1)}</span>
+              <span className="text-xs text-muted">out of 10</span>
             </div>
           </div>
 
           <div className="flex-1 text-center md:text-left">
-            <div className="inline-flex items-center gap-2 bg-emerald-50
-                            text-emerald-700 px-3 py-1 rounded-full
-                            text-xs font-semibold uppercase tracking-wide mb-3">
-              <FaTrophy size={11} />
-              {getGrade(finalScore)}
-            </div>
-
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              {performanceText}
-            </h2>
-            <p className="text-gray-500 text-sm leading-relaxed max-w-md">
-              {shortTagline}
-            </p>
+            <span className={`inline-block rounded-md px-2.5 py-1 text-xs font-medium ${overall.soft} ${overall.text}`}>
+              {gradeFor(finalScore)}
+            </span>
+            <h2 className="mt-3 text-xl font-medium text-ink">{performanceText}</h2>
+            <p className="mt-1 max-w-md text-sm leading-relaxed text-muted">{shortTagline}</p>
           </div>
-        </motion.div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-          {metrics.map((m, i) => (
-            <motion.div
-              key={m.label}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + i * 0.08 }}
-              whileHover={{ y: -4, scale: 1.02 }}
-              className={`rounded-2xl border p-5 ${getScoreBg(m.value)}
-                         hover:shadow-md transition-shadow cursor-default`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  {m.label}
-                </span>
-                <span className={getScoreColor(m.value)}>{m.icon}</span>
-              </div>
-
-              <div className="flex items-baseline gap-1">
-                <span className={`text-3xl font-bold ${getScoreColor(m.value)}`}>
-                  {Number(m.value).toFixed(1)}
-                </span>
-                <span className="text-sm text-gray-400">/ 10</span>
-              </div>
-
-              <div className="mt-3 h-1.5 bg-white/60 rounded-full overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${(m.value / 10) * 100}%` }}
-                  transition={{ duration: 0.8, delay: 0.3 + i * 0.1 }}
-                  className={`h-full rounded-full ${
-                    m.value >= 8
-                      ? "bg-emerald-500"
-                      : m.value >= 6
-                      ? "bg-blue-500"
-                      : m.value >= 4
-                      ? "bg-amber-500"
-                      : "bg-red-500"
-                  }`}
-                />
-              </div>
-            </motion.div>
-          ))}
         </div>
 
-        {chartData.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35 }}
-            className="bg-white rounded-3xl border border-gray-200 shadow-lg
-                       p-6 sm:p-8 mb-8 hover:shadow-xl transition-shadow"
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <FaChartLine className="text-emerald-600" />
-              <h3 className="text-lg font-bold text-gray-900">
-                Score per Question
-              </h3>
-            </div>
-            <p className="text-xs text-gray-500 mb-6">
-              Higher is better. Bars are color-coded by performance.
-            </p>
-
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={chartData} barCategoryGap="25%">
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis
-                  dataKey="name"
-                  tick={{ fill: "#64748b", fontSize: 12 }}
-                  axisLine={{ stroke: "#e2e8f0" }}
-                  tickLine={false}
-                />
-                <YAxis
-                  domain={[0, 10]}
-                  tick={{ fill: "#64748b", fontSize: 12 }}
-                  axisLine={{ stroke: "#e2e8f0" }}
-                  tickLine={false}
-                />
-                <Tooltip
-                  cursor={{ fill: "#f8fafc" }}
-                  contentStyle={{
-                    borderRadius: 12,
-                    border: "1px solid #e2e8f0",
-                    fontSize: 12,
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
-                  }}
-                  formatter={(value) => [`${value}/10`, "Score"]}
-                />
-                <Bar dataKey="score" radius={[8, 8, 0, 0]}>
-                  {chartData.map((entry, index) => (
-                    <Cell key={index} fill={getBarColor(entry.score)} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </motion.div>
-        )}
-
-        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <FaChartLine className="text-emerald-600" />
-          Detailed Breakdown
-        </h3>
-
-        <div className="space-y-4">
-          {questionWiseScore.map((q, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 + i * 0.05 }}
-              whileHover={{ y: -2 }}
-              className="bg-white rounded-2xl border border-gray-200
-                         shadow-sm hover:shadow-md hover:border-emerald-100
-                         transition-all p-6"
-            >
-              <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-wide
-                                text-emerald-600 mb-1">
-                    Question {i + 1}
-                    {q.difficulty && ` · ${q.difficulty}`}
-                  </p>
-                  <p className="font-semibold text-gray-900 leading-relaxed">
-                    {q.question}
-                  </p>
-                </div>
-
-                <div className="text-right shrink-0">
-                  <p className={`text-2xl font-bold ${getScoreColor(q.score)}`}>
-                    {q.score ?? 0}
-                  </p>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">
-                    Score
-                  </p>
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          {METRICS.map((m) => {
+            const value = Number(report[m.key] ?? 0);
+            return (
+              <div key={m.key} className={`rounded-xl p-4 ${m.tile}`}>
+                <p className="text-xs">{m.label}</p>
+                <p className="mt-0.5 text-2xl font-medium">
+                  {value.toFixed(1)}
+                  <span className="text-sm font-normal"> / 10</span>
+                </p>
+                <div className="mt-2 h-1.5 rounded-full bg-surface">
+                  <div className={`h-1.5 rounded-full ${m.bar}`} style={{ width: `${Math.max(0, Math.min(10, value)) * 10}%` }} />
                 </div>
               </div>
+            );
+          })}
+        </div>
+      </motion.section>
 
-              {q.answer && (
-                <div className="bg-gray-50 rounded-xl p-4 mb-4">
-                  <p className="text-[10px] font-bold uppercase tracking-wide
-                                text-gray-400 mb-1">
-                    Your Answer
+      <div className="mt-6">
+        <ScoreChart data={chartData} />
+      </div>
+
+      {delivery && (
+        <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
+          <h2 className="text-lg font-medium text-ink">Speaking delivery</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl bg-sky-soft p-4 text-sky-deep">
+              <p className="text-xs">Pace</p>
+              <p className="mt-0.5 text-2xl font-medium">
+                {delivery.wpm > 0 ? delivery.wpm : "—"}
+                <span className="text-sm font-normal"> wpm</span>
+              </p>
+              <p className="text-xs">{paceLabel(delivery.wpm) || "Not enough speech to measure"}</p>
+            </div>
+            <div className="rounded-xl bg-violet-soft p-4 text-violet-deep">
+              <p className="text-xs">Filler words</p>
+              <p className="mt-0.5 text-2xl font-medium">{delivery.fillerCount}</p>
+              <p className="text-xs">{delivery.topFillers.join(", ") || "None detected"}</p>
+            </div>
+            <div className="rounded-xl bg-amber-soft p-4 text-amber-deep">
+              <p className="text-xs">Long pauses</p>
+              <p className="mt-0.5 text-2xl font-medium">{delivery.longPauseCount}</p>
+              <p className="text-xs">1.5 seconds or more</p>
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-muted">
+            Based on {delivery.answers} recorded answer{delivery.answers === 1 ? "" : "s"}. A comfortable
+            interview pace is roughly 110 to 165 words per minute. Filler counts depend on the
+            transcription and can be lower than the real number.
+          </p>
+        </section>
+      )}
+
+      <div className="mt-10 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-medium text-ink">Detailed breakdown</h2>
+        {questions.length > 0 && (
+          <motion.button
+            type="button"
+            onClick={toggleAll}
+            disabled={busy}
+            whileHover={busy ? undefined : { scale: 1.03 }}
+            whileTap={busy ? undefined : { scale: 0.97 }}
+            transition={SPRING}
+            className={`${actionButton} bg-violet-soft text-violet-deep hover:opacity-90`}
+          >
+            {loadingKey === "all" ? "Preparing model answers…" : allOpen ? "Hide all model answers" : "Show all model answers"}
+          </motion.button>
+        )}
+      </div>
+      {errors.all && (
+        <p role="alert" className="mt-3 rounded-lg bg-rose-soft px-4 py-3 text-sm text-rose-deep">
+          {errors.all}
+        </p>
+      )}
+
+      <div className="mt-4 space-y-4">
+        {questions.map((q, i) => {
+          const t = toneFor(Number(q.score ?? 0));
+          const isOpen = !!open[q.key] && !!modelAnswers[q.key];
+          const isLoading = loadingKey === q.key;
+          return (
+            <motion.article
+              key={q.key}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, delay: Math.min(i, 6) * 0.05 }}
+              className="rounded-2xl border border-line bg-surface p-6"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-indigo-deep">
+                    {labels[i].long}
+                    {q.difficulty && <span className="font-normal text-muted"> · {q.difficulty}</span>}
                   </p>
-                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                    {q.answer}
-                  </p>
+                  <h3 className="mt-1 font-medium leading-relaxed text-ink">{q.question}</h3>
                 </div>
-              )}
+                <span className={`rounded-md px-2.5 py-1 text-sm font-medium ${t.soft} ${t.text}`}>
+                  {q.score ?? 0} / 10
+                </span>
+              </div>
+
+              <div className="mt-4 rounded-xl bg-canvas p-4">
+                <p className="text-xs font-medium text-muted">Your answer</p>
+                {q.answer && q.answer.trim() ? (
+                  <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink">{q.answer}</p>
+                ) : (
+                  <p className="mt-1 text-sm italic text-muted">No answer submitted.</p>
+                )}
+                {q.delivery && q.delivery.wordCount > 0 && (
+                  <p className="mt-2 text-xs text-sky-deep">Delivery: {deliverySummary(q.delivery)}</p>
+                )}
+              </div>
 
               {q.feedback && (
-                <div className="bg-emerald-50 border border-emerald-100
-                                rounded-xl p-4 mb-4">
-                  <p className="text-[10px] font-bold uppercase tracking-wide
-                                text-emerald-600 mb-1">
-                    Feedback
-                  </p>
-                  <p className="text-sm text-emerald-900 leading-relaxed">
-                    {q.feedback}
-                  </p>
+                <div className="mt-3 rounded-xl bg-indigo-soft p-4">
+                  <p className="text-xs font-medium text-indigo-deep">Feedback</p>
+                  <p className="mt-1 text-sm leading-relaxed text-ink">{q.feedback}</p>
                 </div>
               )}
 
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { label: "Confidence", value: q.confidence },
-                  { label: "Communication", value: q.communication },
-                  { label: "Correctness", value: q.correctness },
-                ].map((s) => (
-                  <div
-                    key={s.label}
-                    className="flex flex-col items-center bg-gray-50
-                               rounded-lg py-2 border border-gray-100
-                               hover:bg-white hover:border-emerald-100
-                               transition-colors"
-                  >
-                    <span
-                      className={`text-base font-bold ${getScoreColor(
-                        s.value ?? 0
-                      )}`}
-                    >
-                      {s.value ?? 0}
-                    </span>
-                    <span className="text-[9px] text-gray-500 uppercase tracking-wide">
-                      {s.label}
-                    </span>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {METRICS.map((m) => (
+                  <div key={m.key} className={`rounded-lg px-2 py-2 text-center ${m.tile}`}>
+                    <p className="text-base font-medium">{q[m.key] ?? 0}</p>
+                    <p className="text-[11px]">{m.label}</p>
                   </div>
                 ))}
               </div>
-            </motion.div>
-          ))}
-        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="flex justify-center gap-3 mt-10 flex-wrap"
-        >
-          <motion.button
-            whileHover={{ scale: 1.05, y: -2 }}
-            whileTap={{ scale: 0.96 }}
-            transition={buttonSpring}
-            onClick={() => navigate("/interview")}
-            className="bg-gradient-to-r from-emerald-600 to-teal-500
-                       hover:from-emerald-500 hover:to-teal-400
-                       text-white px-8 py-3 rounded-full font-semibold
-                       shadow-md hover:shadow-lg hover:shadow-emerald-500/30
-                       transition-all"
-          >
-            Take Another Interview
-          </motion.button>
+              <div className="mt-4">
+                <motion.button
+                  type="button"
+                  onClick={() => toggleModelAnswer(q.key)}
+                  disabled={busy}
+                  aria-expanded={isOpen}
+                  aria-controls={`model-answer-${q.key}`}
+                  whileHover={busy ? undefined : { scale: 1.03 }}
+                  whileTap={busy ? undefined : { scale: 0.97 }}
+                  transition={SPRING}
+                  className={`${actionButton} bg-violet-soft py-2 text-violet-deep hover:opacity-90`}
+                >
+                  {isLoading ? "Preparing model answer…" : isOpen ? "Hide model answer" : "Show model answer"}
+                  <FaChevronDown
+                    size={11}
+                    aria-hidden="true"
+                    className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                  />
+                </motion.button>
 
-          <motion.button
-            whileHover={{ scale: 1.05, y: -2 }}
-            whileTap={{ scale: 0.96 }}
-            transition={buttonSpring}
-            onClick={() => navigate("/history")}
-            className="bg-white border border-gray-300 text-gray-700
-                       hover:bg-gray-50 hover:border-gray-400 hover:text-gray-900
-                       px-8 py-3 rounded-full font-semibold
-                       shadow-sm hover:shadow-md
-                       transition-all"
-          >
-            View History
-          </motion.button>
+                {errors[q.key] && (
+                  <p role="alert" className="mt-3 rounded-lg bg-rose-soft px-4 py-3 text-sm text-rose-deep">
+                    {errors[q.key]}
+                  </p>
+                )}
 
-          <motion.button
-            whileHover={{ scale: 1.05, y: -2 }}
-            whileTap={{ scale: 0.96 }}
-            transition={buttonSpring}
-            onClick={handleDownloadPdf}
-            disabled={downloading}
-            className="inline-flex items-center gap-2
-                       bg-black hover:bg-gray-800
-                       text-white px-8 py-3 rounded-full font-semibold
-                       shadow-md hover:shadow-lg hover:shadow-black/20
-                       disabled:opacity-60 disabled:cursor-not-allowed
-                       transition-all"
-          >
-            {downloading ? (
-              <FaSpinner className="animate-spin" size={14} />
-            ) : (
-              <FaDownload size={14} />
-            )}
-            {downloading ? "Generating..." : "Download PDF"}
-          </motion.button>
-        </motion.div>
-
-        {pdfError && (
-          <p className="text-center text-sm text-red-500 mt-4">{pdfError}</p>
-        )}
+                <AnimatePresence initial={false}>
+                  {isOpen && (
+                    <motion.div
+                      id={`model-answer-${q.key}`}
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.18 }}
+                      className="mt-3 rounded-xl bg-violet-soft p-4"
+                    >
+                      <p className="text-xs font-medium text-violet-deep">Model answer</p>
+                      <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink">{modelAnswers[q.key]}</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.article>
+          );
+        })}
       </div>
-    </div>
+
+      <p className="mt-8 text-center text-xs text-muted">
+        Scores, feedback and model answers are AI-generated for practice and can be wrong.
+      </p>
+    </main>
   );
 }
 

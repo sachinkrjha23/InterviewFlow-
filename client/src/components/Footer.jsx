@@ -1,33 +1,67 @@
-import React from "react";
-import { BsRobot } from "react-icons/bs";
+import { Link } from "react-router-dom";
+import Logo from "./Logo";
+
+const columns = [
+  {
+    title: "Product",
+    links: [
+      { label: "Start an interview", to: "/interview" },
+      { label: "Interview history", to: "/history" },
+      { label: "Credits", to: "/pricing" },
+    ],
+  },
+  {
+    title: "Company",
+    links: [
+      { label: "About", to: "/about" },
+      { label: "FAQ", to: "/faq" },
+      { label: "Contact", to: "/contact" },
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      { label: "Terms and conditions", to: "/terms" },
+      { label: "Privacy policy", to: "/privacy" },
+    ],
+  },
+];
 
 function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="mt-24 bg-gray-200 border-t border-gray-200">
-      <div className="max-w-6xl mx-auto px-6 py-8
-                      flex flex-col md:flex-row items-center md:items-start
-                      justify-between gap-4">
-
-        <div className="flex flex-col items-center md:items-start gap-2 max-w-md text-center md:text-left">
-          <div className="flex items-center gap-2">
-            <div className="bg-black text-white p-1.5 rounded-md flex items-center justify-center">
-              <BsRobot size={14} />
-            </div>
-            <span className="font-semibold text-sm text-gray-800">
-              InterviewFlow
-            </span>
+    <footer className="border-t border-line bg-surface">
+      <div className="mx-auto max-w-6xl px-6 py-12">
+        <div className="grid gap-10 md:grid-cols-5">
+          <div className="md:col-span-2">
+            <Logo />
+            <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted">
+              AI-powered mock interviews with spoken questions, scored feedback and
+              downloadable performance reports.
+            </p>
           </div>
-          <p className="text-xs text-gray-500 leading-relaxed">
-            AI-powered mock interviews with spoken questions, scored
-            feedback, and downloadable performance reports.
-          </p>
+
+          {columns.map((column) => (
+            <nav key={column.title} aria-label={column.title}>
+              <h2 className="text-sm font-medium text-ink">{column.title}</h2>
+              <ul className="mt-4 space-y-2.5">
+                {column.links.map((link) => (
+                  <li key={link.to}>
+                    <Link to={link.to} className="text-sm text-muted hover:text-indigo-deep">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))}
         </div>
 
-        <p className="text-xs text-gray-500 shrink-0">
-          © {year} InterviewFlow. All rights reserved.
-        </p>
+        <div className="mt-10 flex flex-col gap-2 border-t border-line pt-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
+          <p>© {year} InterviewFlow. All rights reserved.</p>
+          <p>Scores and feedback are AI-generated for practice and can be wrong.</p>
+        </div>
       </div>
     </footer>
   );

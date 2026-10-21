@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -13,18 +13,19 @@ import {
   FaCheckCircle,
   FaSpinner,
   FaTrophy,
+  FaStar,
   FaReceipt,
   FaChevronRight,
 } from "react-icons/fa";
 import { HiOutlineLogout } from "react-icons/hi";
 import { signOut, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { serverUrl } from "../App";
+import { serverUrl } from "../config.js";
 import { setUserData } from "../redux/userSlice";
 import { auth } from "../utils/firebase.js";
 import Avatar from "../components/Avatar";
 import Navbar from "../components/Navbar";
 
-const card = "bg-white rounded-3xl border border-gray-200 shadow-sm p-6";
+const card = "rounded-3xl border border-line bg-surface p-6";
 
 const fmtDate = (d) =>
   new Date(d).toLocaleDateString("en-IN", {
@@ -35,20 +36,24 @@ const fmtDate = (d) =>
 
 const scoreClass = (s) =>
   s >= 8
-    ? "bg-emerald-50 text-emerald-700"
+    ? "bg-teal-soft text-teal-deep"
     : s >= 6
-      ? "bg-blue-50 text-blue-700"
+      ? "bg-sky-soft text-sky-deep"
       : s >= 4
-        ? "bg-amber-50 text-amber-700"
-        : "bg-red-50 text-red-600";
+        ? "bg-amber-soft text-amber-deep"
+        : "bg-rose-soft text-rose-deep";
+
+const barColor = (s) =>
+  s >= 8 ? "bg-teal" : s >= 6 ? "bg-sky" : s >= 4 ? "bg-amber" : "bg-rose";
 
 function Msg({ m }) {
   if (!m) return null;
   return (
     <p
-      className={`mt-3 text-sm rounded-xl px-4 py-3 border ${m.type === "success"
-          ? "text-emerald-700 bg-emerald-50 border-emerald-100"
-          : "text-red-500 bg-red-50 border-red-100"
+      role={m.type === "success" ? "status" : "alert"}
+      className={`mt-3 rounded-xl border px-4 py-3 text-sm ${m.type === "success"
+          ? "border-teal/30 bg-teal-soft text-teal-deep"
+          : "border-rose/30 bg-rose-soft text-rose-deep"
         }`}
     >
       {m.text}
@@ -76,7 +81,7 @@ const resizeImage = (file, maxSide = 800) =>
         (blob) =>
           blob ? resolve(blob) : reject(new Error("Couldn't process that image.")),
         "image/jpeg",
-        0.85
+        0.85,
       );
     };
 
@@ -108,25 +113,28 @@ function Profile() {
 
   const [interviews, setInterviews] = useState(null);
   const [payments, setPayments] = useState(null);
+  const [stats, setStats] = useState(null);
   const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     const load = async () => {
-      const [h, p] = await Promise.allSettled([
-        axios.get(serverUrl + "/api/interview/history", { withCredentials: true }),
+      const [h, p, s] = await Promise.allSettled([
+        axios.get(serverUrl + "/api/interview/history", {
+          params: { limit: 5 },
+          withCredentials: true,
+        }),
         axios.get(serverUrl + "/api/payment/history", { withCredentials: true }),
+        axios.get(serverUrl + "/api/interview/stats", { withCredentials: true }),
       ]);
-      if (h.status === "rejected" || p.status === "rejected") setLoadFailed(true);
+      if (h.status === "rejected" || p.status === "rejected" || s.status === "rejected") {
+        setLoadFailed(true);
+      }
       setInterviews(h.status === "fulfilled" ? h.value.data || [] : []);
       setPayments(p.status === "fulfilled" ? p.value.data || [] : []);
+      if (s.status === "fulfilled") setStats(s.value.data);
     };
     load();
   }, []);
-
-  const completed = (interviews || []).filter((i) => i.status === "Completed");
-  const avgScore = completed.length
-    ? completed.reduce((s, i) => s + (i.finalScore || 0), 0) / completed.length
-    : null;
 
   const handleSaveName = async () => {
     const trimmed = name.trim();
@@ -140,7 +148,7 @@ function Profile() {
       const result = await axios.patch(
         serverUrl + "/api/user/profile",
         { name: trimmed },
-        { withCredentials: true }
+        { withCredentials: true },
       );
       dispatch(setUserData(result.data));
       setNameMsg({ type: "success", text: "Name updated." });
@@ -167,7 +175,7 @@ function Profile() {
       const result = await axios.post(
         serverUrl + "/api/user/email/change",
         { idToken },
-        { withCredentials: true }
+        { withCredentials: true },
       );
 
       dispatch(setUserData(result.data));
@@ -273,36 +281,67 @@ function Profile() {
       await signOut(auth);
       dispatch(setUserData(null));
       navigate("/");
-    } catch (error) {
-      console.log(error);
+    } catch {
+      // the user stays on the page and can simply try again
     }
   };
 
   const nameChanged = name.trim() !== (userData?.name || "");
+  const hasStats = stats && stats.completed > 0;
+
+  const statCards = [
+    {
+      label: "Credits",
+      value: userData?.credits ?? 0,
+      icon: <FaCoins />,
+      tone: "bg-amber-soft text-amber",
+    },
+    {
+      label: "Completed",
+      value: stats ? stats.completed : "—",
+      icon: <FaCheckCircle />,
+      tone: "bg-teal-soft text-teal",
+    },
+    {
+      label: "Avg score",
+      value: hasStats ? stats.avgScore.toFixed(1) : "—",
+      icon: <FaTrophy />,
+      tone: "bg-indigo-soft text-indigo",
+    },
+    {
+      label: "Best score",
+      value: hasStats ? stats.bestScore.toFixed(1) : "—",
+      icon: <FaStar />,
+      tone: "bg-violet-soft text-violet",
+    },
+  ];
+
+  const recentScores = stats?.recentScores || [];
 
   return (
-    <div className="min-h-screen bg-[#f3f3f3] pb-16">
+    <div className="min-h-screen bg-canvas pb-16">
       <Navbar />
 
-      <div className="max-w-5xl mx-auto px-4 pt-10">
-        <h1 className="text-3xl font-bold text-gray-900">Your Profile</h1>
-        <p className="text-gray-500 text-sm mt-1">
+      <main className="mx-auto max-w-5xl px-4 pt-10 sm:px-6">
+        <h1 className="text-3xl font-bold text-ink">Your profile</h1>
+        <p className="mt-1 text-sm text-muted">
           Manage your details, credits and activity.
         </p>
 
-        <div className="grid gap-6 lg:grid-cols-3 mt-6">
+        <div className="mt-6 grid gap-6 lg:grid-cols-3">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`${card} lg:col-span-1 h-fit text-center`}
+            transition={{ duration: 0.3 }}
+            className={`${card} h-fit text-center lg:col-span-1`}
           >
-            <div className="relative w-28 mx-auto">
+            <div className="relative mx-auto w-28">
               <Avatar user={userData} size={112} />
               {savingPhoto && (
-                <div className="absolute inset-0 rounded-full bg-white/75 flex flex-col items-center justify-center">
-                  <FaSpinner className="animate-spin text-emerald-600" size={20} />
+                <div className="absolute inset-0 flex flex-col items-center justify-center rounded-full bg-surface/75">
+                  <FaSpinner className="animate-spin text-indigo" size={20} />
                   {uploadPct > 0 && uploadPct < 100 && (
-                    <span className="text-xs font-semibold text-emerald-700 mt-1">
+                    <span className="mt-1 text-xs font-semibold text-indigo-deep">
                       {uploadPct}%
                     </span>
                   )}
@@ -310,8 +349,8 @@ function Profile() {
               )}
             </div>
 
-            <p className="text-xl font-semibold text-gray-900 mt-4">{userData?.name}</p>
-            <p className="text-sm text-gray-500 truncate">{userData?.email}</p>
+            <p className="mt-4 text-xl font-semibold text-ink">{userData?.name}</p>
+            <p className="truncate text-sm text-muted">{userData?.email}</p>
 
             <input
               ref={fileRef}
@@ -320,101 +359,116 @@ function Profile() {
               onChange={handlePhotoChange}
               className="hidden"
             />
-            <div className="flex flex-wrap justify-center gap-2 mt-4">
-              <button
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <motion.button
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
                 onClick={() => fileRef.current?.click()}
                 disabled={savingPhoto}
-                className="inline-flex items-center gap-2 bg-black text-white px-4 py-2 rounded-full text-sm font-semibold hover:opacity-90 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 rounded-lg bg-indigo px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <FaCamera size={13} /> Change photo
-              </button>
+              </motion.button>
               {userData?.avatar && (
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
                   onClick={handleRemovePhoto}
                   disabled={savingPhoto}
-                  className="inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-200 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-2 rounded-lg border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-ink hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <FaTrash size={12} /> Remove
-                </button>
+                </motion.button>
               )}
             </div>
             <Msg m={photoMsg} />
 
-            <div className="grid grid-cols-3 gap-2 mt-6">
-              {[
-                { label: "Credits", value: userData?.credits ?? 0, icon: <FaCoins /> },
-                {
-                  label: "Done",
-                  value: interviews ? completed.length : "—",
-                  icon: <FaCheckCircle />,
-                },
-                {
-                  label: "Avg score",
-                  value: avgScore != null ? avgScore.toFixed(1) : "—",
-                  icon: <FaTrophy />,
-                },
-              ].map((s) => (
-                <div key={s.label} className="bg-gray-50 rounded-2xl py-3 border border-gray-100">
-                  <div className="text-emerald-600 flex justify-center mb-1 text-sm">{s.icon}</div>
-                  <p className="text-lg font-bold text-gray-900">{s.value}</p>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">{s.label}</p>
+            <div className="mt-6 grid grid-cols-2 gap-2">
+              {statCards.map((s) => (
+                <div key={s.label} className="rounded-2xl border border-line bg-canvas px-2 py-3">
+                  <div className={`mx-auto mb-1.5 flex h-7 w-7 items-center justify-center rounded-lg text-xs ${s.tone}`}>
+                    {s.icon}
+                  </div>
+                  <p className="text-lg font-bold text-ink">{s.value}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-muted">{s.label}</p>
                 </div>
               ))}
             </div>
 
+            {recentScores.length > 1 && (
+              <div className="mt-4 rounded-2xl border border-line bg-canvas p-3">
+                <p className="mb-2 text-[10px] uppercase tracking-wide text-muted">
+                  Last {recentScores.length} scores
+                </p>
+                <div className="flex h-14 items-end justify-center gap-1.5">
+                  {recentScores.map((r, i) => (
+                    <div
+                      key={i}
+                      title={`${r.finalScore.toFixed(1)} · ${fmtDate(r.createdAt)}`}
+                      className={`w-4 rounded-t ${barColor(r.finalScore)}`}
+                      style={{ height: `${Math.max(8, (r.finalScore / 10) * 100)}%` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             <button
               onClick={handleLogout}
-              className="mt-6 w-full inline-flex items-center justify-center gap-2 border border-red-200 text-red-500 px-4 py-2.5 rounded-full text-sm font-semibold hover:bg-red-50 transition"
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-rose/40 px-4 py-2.5 text-sm font-medium text-rose-deep hover:bg-rose-soft"
             >
               <HiOutlineLogout size={16} /> Logout
             </button>
           </motion.div>
 
-          <div className="lg:col-span-2 space-y-6">
-            {/* Account details: update name + change email */}
+          <div className="space-y-6 lg:col-span-2">
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 }}
+              transition={{ duration: 0.3, delay: 0.05 }}
               className={card}
             >
-              <h2 className="text-lg font-bold text-gray-900 mb-5">Account details</h2>
+              <h2 className="mb-5 text-lg font-bold text-ink">Account details</h2>
 
-              <label className="block text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">
+              <label
+                htmlFor="display-name"
+                className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted"
+              >
                 Display name
               </label>
               <div className="flex gap-2">
                 <input
+                  id="display-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   maxLength={60}
-                  className="flex-1 min-w-0 bg-gray-100 rounded-xl px-4 py-3 text-sm outline-none border border-gray-200 focus:ring-2 focus:ring-emerald-500"
+                  className="min-w-0 flex-1 rounded-xl border border-line bg-canvas px-4 py-3 text-sm text-ink outline-none focus:border-indigo"
                 />
                 <button
                   onClick={handleSaveName}
                   disabled={savingName || !nameChanged}
-                  className="bg-emerald-600 text-white px-5 rounded-xl text-sm font-semibold hover:bg-emerald-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="rounded-xl bg-indigo px-5 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {savingName ? "Saving..." : "Save"}
                 </button>
               </div>
               <Msg m={nameMsg} />
 
-              <div className="h-px bg-gray-100 my-6" />
+              <div className="my-6 h-px bg-line" />
 
-              <label className="block text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">
+              <p className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted">
                 Sign-in email
-              </label>
-              <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
-                <FaGoogle className="text-gray-500 shrink-0" />
-                <span className="text-sm text-gray-700 truncate">{userData?.email}</span>
+              </p>
+              <div className="flex items-center gap-3 rounded-xl border border-line bg-canvas px-4 py-3">
+                <FaGoogle className="shrink-0 text-muted" />
+                <span className="truncate text-sm text-ink">{userData?.email}</span>
                 <button
                   onClick={() => {
                     setConfirmingEmail(true);
                     setEmailMsg(null);
                   }}
                   disabled={confirmingEmail || changingEmail}
-                  className="ml-auto bg-white border border-gray-300 text-gray-700 px-4 py-1.5 rounded-full text-xs font-semibold hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                  className="ml-auto shrink-0 rounded-lg border border-line-strong bg-surface px-4 py-1.5 text-xs font-medium text-ink hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Change
                 </button>
@@ -424,21 +478,22 @@ function Profile() {
                 <motion.div
                   initial={{ opacity: 0, y: -6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="mt-3 bg-emerald-50 border border-emerald-200 rounded-xl p-4"
+                  transition={{ duration: 0.2 }}
+                  className="mt-3 rounded-xl border border-amber/40 bg-amber-soft p-4"
                 >
-                  <p className="text-sm font-semibold text-emerald-900">
+                  <p className="text-sm font-semibold text-amber-deep">
                     Switch to a different Google account
                   </p>
-                  <ul className="text-sm text-emerald-800 mt-2 space-y-1 list-disc pl-5">
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-deep">
                     <li>You'll choose the Google account you want to sign in with from now on.</li>
                     <li>Your credits, interviews and payments stay with this profile.</li>
                     <li>Your current Google account is removed from this profile. Signing in with it later would start a brand-new profile.</li>
                   </ul>
-                  <div className="flex gap-2 mt-4">
+                  <div className="mt-4 flex gap-2">
                     <button
                       onClick={handleChangeEmail}
                       disabled={changingEmail}
-                      className="inline-flex items-center gap-2 bg-black text-white px-5 py-2 rounded-full text-sm font-semibold hover:opacity-90 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-2 rounded-lg bg-indigo px-5 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {changingEmail ? (
                         <>
@@ -453,7 +508,7 @@ function Profile() {
                     <button
                       onClick={() => setConfirmingEmail(false)}
                       disabled={changingEmail}
-                      className="bg-white border border-emerald-300 text-emerald-800 px-5 py-2 rounded-full text-sm font-semibold hover:bg-emerald-100 transition disabled:opacity-60"
+                      className="rounded-lg border border-amber/50 bg-surface px-5 py-2 text-sm font-medium text-amber-deep hover:bg-canvas disabled:opacity-60"
                     >
                       Cancel
                     </button>
@@ -463,49 +518,50 @@ function Profile() {
               <Msg m={emailMsg} />
             </motion.div>
 
-            {/* Billing */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
               className={card}
             >
-              <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">Billing</h2>
-                  <p className="text-sm text-gray-500">
+                  <h2 className="text-lg font-bold text-ink">Billing</h2>
+                  <p className="text-sm text-muted">
                     {userData?.credits ?? 0} credits available
                   </p>
                 </div>
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
                   onClick={() => navigate("/pricing")}
-                  className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-500 text-white px-5 py-2.5 rounded-full text-sm font-semibold shadow-md hover:opacity-90 transition"
+                  className="inline-flex items-center gap-2 rounded-lg bg-indigo px-5 py-2.5 text-sm font-medium text-white hover:opacity-90"
                 >
                   <FaCoins size={13} /> Buy credits
-                </button>
+                </motion.button>
               </div>
 
               {payments === null ? (
-                <p className="text-sm text-gray-400">Loading payments...</p>
+                <p className="text-sm text-muted">Loading payments...</p>
               ) : payments.length === 0 ? (
-                <p className="text-sm text-gray-400">No payments yet.</p>
+                <p className="text-sm text-muted">No payments yet.</p>
               ) : (
-                <div className="divide-y divide-gray-100">
+                <div className="divide-y divide-line">
                   {payments.map((p) => (
                     <div key={p._id} className="flex items-center gap-3 py-3">
-                      <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-soft text-teal">
                         <FaReceipt size={14} />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-800">
+                        <p className="text-sm font-medium text-ink">
                           {p.packName} pack · +{p.credits} credits
                         </p>
-                        <p className="text-xs text-gray-400 truncate">
+                        <p className="truncate text-xs text-muted">
                           {fmtDate(p.paidAt)}
                           {p.paymentId ? ` · ${p.paymentId}` : ""}
                         </p>
                       </div>
-                      <p className="ml-auto text-sm font-semibold text-gray-900 shrink-0">
+                      <p className="ml-auto shrink-0 text-sm font-semibold text-ink">
                         ₹{(p.amount / 100).toLocaleString("en-IN")}
                       </p>
                     </div>
@@ -514,64 +570,65 @@ function Profile() {
               )}
             </motion.div>
 
-            {/* Recent interviews */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15 }}
+              transition={{ duration: 0.3, delay: 0.15 }}
               className={card}
             >
-              <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
-                <h2 className="text-lg font-bold text-gray-900">Recent interviews</h2>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+                <h2 className="text-lg font-bold text-ink">Recent interviews</h2>
                 <div className="flex gap-2">
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.96 }}
                     onClick={() => navigate("/interview")}
-                    className="inline-flex items-center gap-2 bg-black text-white px-4 py-2 rounded-full text-xs font-semibold hover:opacity-90 transition"
+                    className="inline-flex items-center gap-2 rounded-lg bg-indigo px-4 py-2 text-xs font-medium text-white hover:opacity-90"
                   >
                     <FaPlusCircle size={12} /> New
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.96 }}
                     onClick={() => navigate("/history")}
-                    className="inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-xs font-semibold hover:bg-gray-200 transition"
+                    className="inline-flex items-center gap-2 rounded-lg border border-line-strong bg-surface px-4 py-2 text-xs font-medium text-ink hover:bg-canvas"
                   >
                     <FaHistory size={12} /> View all
-                  </button>
+                  </motion.button>
                 </div>
               </div>
 
               {interviews === null ? (
-                <p className="text-sm text-gray-400">Loading interviews...</p>
+                <p className="text-sm text-muted">Loading interviews...</p>
               ) : interviews.length === 0 ? (
-                <p className="text-sm text-gray-400">
-                  No interviews yet. Start your first one!
-                </p>
+                <p className="text-sm text-muted">No interviews yet. Start your first one!</p>
               ) : (
-                <div className="divide-y divide-gray-100">
+                <div className="divide-y divide-line">
                   {interviews.slice(0, 5).map((item) => {
                     const isComplete = item.status === "Completed";
                     return (
                       <button
                         key={item._id}
                         onClick={() => navigate(`/report/${item._id}`)}
-                        className="w-full flex items-center gap-3 py-3 text-left hover:bg-gray-50 rounded-xl px-2 -mx-2 transition"
+                        className="-mx-2 flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left transition-colors hover:bg-canvas"
                       >
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-800 truncate">
-                            {item.role}
-                          </p>
-                          <p className="text-xs text-gray-400">
+                          <p className="truncate text-sm font-medium text-ink">{item.role}</p>
+                          <p className="text-xs text-muted">
                             {item.mode} · {item.experience} · {fmtDate(item.createdAt)}
                           </p>
                         </div>
                         <span
-                          className={`ml-auto text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${isComplete
+                          className={`ml-auto shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${isComplete
                               ? scoreClass(item.finalScore || 0)
-                              : "bg-gray-100 text-gray-500"
+                              : "bg-amber-soft text-amber-deep"
                             }`}
                         >
-                          {isComplete ? Number(item.finalScore || 0).toFixed(1) : "Incomplete"}
+                          {isComplete
+                            ? Number(item.finalScore || 0).toFixed(1)
+                            : `Incomplete · ${item.answeredCount ?? 0}/${item.totalQuestions ?? 6}`}
                         </span>
-                        <FaChevronRight size={11} className="text-gray-300 shrink-0" />
+                        <FaChevronRight size={11} className="shrink-0 text-line-strong" />
                       </button>
                     );
                   })}
@@ -579,14 +636,14 @@ function Profile() {
               )}
 
               {loadFailed && (
-                <p className="mt-3 text-xs text-red-500">
+                <p className="mt-3 text-xs text-rose-deep">
                   Some activity couldn't be loaded. Refresh to try again.
                 </p>
               )}
             </motion.div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

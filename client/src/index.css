@@ -1,1 +1,64 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-canvas: #FAFAF7;
+  --color-surface: #FFFFFF;
+  --color-ink: #1F2433;
+  --color-muted: #5B6275;
+  --color-line: #E3E1DA;
+  --color-line-strong: #C9C6BC;
+
+  --color-indigo: #4F57C9;
+  --color-indigo-soft: #ECEEFF;
+  --color-indigo-deep: #2B3189;
+
+  --color-teal: #1C9B83;
+  --color-teal-soft: #E2F5F0;
+  --color-teal-deep: #0A5A4C;
+
+  --color-amber: #D4860B;
+  --color-amber-soft: #FFF1D6;
+  --color-amber-deep: #7A4504;
+
+  --color-rose: #D6456B;
+  --color-rose-soft: #FFE8EE;
+  --color-rose-deep: #8A1E3E;
+
+  --color-violet: #7B4FD8;
+  --color-violet-soft: #F0E8FF;
+  --color-violet-deep: #43228F;
+
+  --color-sky: #2B87DC;
+  --color-sky-soft: #E3F1FF;
+  --color-sky-deep: #104A80;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+  }
+
+  ::selection {
+    background: var(--color-indigo-soft);
+    color: var(--color-indigo-deep);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-indigo);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

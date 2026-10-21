@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { FaUser } from "react-icons/fa";
 
 function Avatar({ user, size = 36, className = "" }) {
@@ -16,7 +16,7 @@ function Avatar({ user, size = 36, className = "" }) {
         referrerPolicy="no-referrer"
         onError={() => setFailedSrc(src)}
         style={style}
-        className={`rounded-full object-cover bg-gray-200 shrink-0 ${className}`}
+        className={`rounded-full object-cover bg-line shrink-0 ${className}`}
       />
     );
   }
@@ -24,8 +24,8 @@ function Avatar({ user, size = 36, className = "" }) {
   return (
     <div
       style={style}
-      className={`rounded-full bg-black text-white flex items-center
-                  justify-center font-semibold shrink-0 ${className}`}
+      className={`rounded-full bg-indigo-soft text-indigo-deep flex items-center
+                  justify-center font-medium shrink-0 ${className}`}
     >
       {initial || <FaUser size={size * 0.45} />}
     </div>

@@ -1,5 +1,5 @@
 import express from "express";
-import rateLimit from "express-rate-limit";
+import { userLimiter } from "../middleware/userLimiter.js";
 import isAuth from "../middleware/isAuth.js";
 import { avatarUpload } from "../middleware/multer.js";
 import {
@@ -12,18 +12,16 @@ import {
 
 const userRouter = express.Router();
 
-const photoLimiter = rateLimit({
+const photoLimiter = userLimiter({
   windowMs: 60 * 1000,
   limit: 10,
-  message: { message: "Too many photo changes, please slow down." },
+  message: "Too many photo changes, please slow down.",
 });
 
-const emailLimiter = rateLimit({
+const emailLimiter = userLimiter({
   windowMs: 10 * 60 * 1000,
   limit: 5,
-  message: {
-    message: "Too many email change attempts. Please try again later.",
-  },
+  message: "Too many email change attempts. Please try again later.",
 });
 
 const handleAvatarUpload = (req, res, next) =>

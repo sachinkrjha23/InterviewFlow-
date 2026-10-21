@@ -30,3 +30,15 @@ export const avatarUpload = multer({
     cb(null, true);
   },
 });
+
+
+export const audioUpload = multer({
+  storage: multer.memoryStorage(), // audio is never written to disk
+  limits: { fileSize: 6 * 1024 * 1024, files: 1 }, // 6MB
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith("audio/") && file.mimetype !== "video/webm") {
+      return cb(new Error("Only audio recordings are allowed"));
+    }
+    cb(null, true);
+  },
+});
