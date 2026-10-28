@@ -132,7 +132,7 @@ describe("ResumeTailor: tailoring", () => {
     expect(screen.getByText("Check these before you use the resume")).toBeInTheDocument();
     expect(screen.getByText(/mentions 1 keyword your original didn't: Docker\./)).toBeInTheDocument();
     expect(screen.getByText(/New numbers appeared that weren't in your original: 40\./)).toBeInTheDocument();
-    expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+    await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalled());
   });
 
   it("uses the plural when more than one keyword was added", async () => {
