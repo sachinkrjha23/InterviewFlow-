@@ -32,7 +32,7 @@ function Modal({ onClose, labelledBy, children, widthClass = "max-w-md" }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.15 }}
-      className="fixed inset-0 z-[999] flex items-center justify-center bg-ink/40 px-4"
+      className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 px-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

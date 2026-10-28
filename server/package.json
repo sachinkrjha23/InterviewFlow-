@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon index.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "eval": "node scripts/evalScoring.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "author": "",
   "type": "module",
@@ -32,7 +35,10 @@
     "razorpay": "^2.9.8"
   },
   "devDependencies": {
+    "mongodb-memory-server": "^11.3.0",
     "nodemon": "^3.1.14",
-    "pino-pretty": "^13.2.0"
+    "pino-pretty": "^13.2.0",
+    "supertest": "^7.3.1",
+    "vitest": "^5.0.5"
   }
 }

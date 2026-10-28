@@ -12,7 +12,7 @@ const REPLACEMENTS = [
 // the built-in PDF fonts can't draw other characters, so they are dropped
 const toPdfText = (text) =>
   REPLACEMENTS.reduce((s, [re, to]) => s.replace(re, to), String(text)).replace(
-    /[^\x09\x0A\x20-\x7E]/g,
+        /[^\t\n\x20-\x7E]/g,
     "",
   );
 

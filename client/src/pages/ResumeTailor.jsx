@@ -205,6 +205,7 @@ function ResumeTailor() {
     try {
       sessionStorage.removeItem(STORAGE_KEY);
     } catch {
+      // storage can be blocked by the browser; nothing to clear then
     }
   };
 

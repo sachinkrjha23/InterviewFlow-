@@ -91,6 +91,8 @@ function Step2Interview({ interviewData, onFinish }) {
   }, [timeLeft]);
 
   useEffect(() => {
+    if (!window.speechSynthesis) return;
+
     const loadVoices = () => {
       const voices = window.speechSynthesis.getVoices();
       if (!voices.length) return;
@@ -280,7 +282,7 @@ function Step2Interview({ interviewData, onFinish }) {
           interviewId,
           questionIndex: currentIndex,
           answer: finalAnswer,
-          timeTaken: (currentQuestion.timeLimit || 60) - timeLeft,
+          timeTaken: (currentQuestion.timeLimit || 60) - timeLeftRef.current,
           delivery: deliveryRef.current || undefined,
         },
         { withCredentials: true }
@@ -343,7 +345,7 @@ function Step2Interview({ interviewData, onFinish }) {
     setErrorMsg("");
 
     try {
-      window.speechSynthesis.cancel();
+      window.speechSynthesis?.cancel();
       const result = await axios.post(
         serverUrl + "/api/interview/finish",
         { interviewId },
@@ -359,7 +361,7 @@ function Step2Interview({ interviewData, onFinish }) {
 
   useEffect(() => {
     return () => {
-      window.speechSynthesis.cancel();
+      window.speechSynthesis?.cancel();
     };
   }, []);
 

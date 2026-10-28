@@ -3,11 +3,11 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_APIKEY,
-  authDomain: "interviewflow-40940.firebaseapp.com",
-  projectId: "interviewflow-40940",
-  storageBucket: "interviewflow-40940.firebasestorage.app",
-  messagingSenderId: "31546325530",
-  appId: "1:31546325530:web:258f446804a5c219afefa3"
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "interviewflow-40940.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "interviewflow-40940",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "interviewflow-40940.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_SENDER_ID || "31546325530",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:31546325530:web:258f446804a5c219afefa3",
 };
 
 const app = initializeApp(firebaseConfig);

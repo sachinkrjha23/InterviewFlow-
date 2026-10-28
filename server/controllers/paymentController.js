@@ -3,6 +3,7 @@ import User from "../models/users.js";
 import Payment from "../models/paymentModel.js";
 import { getRazorpay } from "../config/razorpay.js";
 import { CREDIT_PACKS } from "../config/creditPacks.js";
+import { logger } from "../utils/logger.js";
 
 const safeEqual = (a, b) => {
   const x = Buffer.from(a);
@@ -21,9 +22,7 @@ const fulfillOrder = async ({ orderId, paymentId, userId, source }) => {
     { returnDocument: "after" },
   );
   if (!payment) {
-    console.log(
-      `[payments] ${source}: order ${orderId} already fulfilled (or unknown), nothing to add`,
-    );
+    logger.info({ source, orderId }, "payments.already_fulfilled_or_unknown");
     return null; // already fulfilled, or unknown order
   }
 
@@ -32,8 +31,15 @@ const fulfillOrder = async ({ orderId, paymentId, userId, source }) => {
       { _id: payment.userId },
       { $inc: { credits: payment.credits } },
     );
-    console.log(
-      `[payments] ${source}: +${payment.credits} credits to user ${payment.userId} (order ${orderId}, payment ${paymentId})`,
+    logger.info(
+      {
+        source,
+        orderId,
+        paymentId,
+        userId: String(payment.userId),
+        credits: payment.credits,
+      },
+      "payments.credits_added",
     );
     return payment;
   } catch (error) {
@@ -81,7 +87,10 @@ export const createOrder = async (req, res) => {
       credits: pack.credits,
     });
   } catch (error) {
-    console.error(error);
+    logger.error(
+      { err: error, userId: String(req.userId) },
+      "payments.create_order_failed",
+    );
     return res
       .status(500)
       .json({ message: "Could not start the payment. Please try again." });
@@ -139,7 +148,10 @@ export const verifyPayment = async (req, res) => {
           : { credits: user.credits },
       );
   } catch (error) {
-    console.error(error);
+    logger.error(
+      { err: error, userId: String(req.userId) },
+      "payments.verify_failed",
+    );
     return res
       .status(500)
       .json({ message: "Couldn't confirm the payment. Please try again." });
@@ -152,7 +164,7 @@ export const razorpayWebhook = async (req, res) => {
     const signature = req.headers["x-razorpay-signature"];
 
     if (!secret || typeof signature !== "string" || !req.rawBody) {
-      console.warn("[webhook] rejected: missing secret, signature header or body");
+      logger.warn({}, "webhook.rejected_missing_secret_signature_or_body");
       return res.status(400).json({ message: "Invalid webhook request." });
     }
 
@@ -162,14 +174,15 @@ export const razorpayWebhook = async (req, res) => {
       .digest("hex");
 
     if (!safeEqual(expected, signature)) {
-      console.warn(
-        "[webhook] rejected: signature mismatch (does RAZORPAY_WEBHOOK_SECRET match the dashboard?)",
+      logger.warn(
+        { hint: "does RAZORPAY_WEBHOOK_SECRET match the dashboard?" },
+        "webhook.signature_mismatch",
       );
       return res.status(400).json({ message: "Invalid signature." });
     }
 
     const { event, payload } = req.body;
-    console.log(`[webhook] received "${event}"`);
+    logger.info({ event }, "webhook.received");
 
     if (event === "payment.captured" || event === "order.paid") {
       const entity = payload?.payment?.entity;
@@ -183,21 +196,19 @@ export const razorpayWebhook = async (req, res) => {
         if (record && record.amount === entity.amount) {
           await fulfillOrder({ orderId, paymentId, source: "webhook" });
         } else {
-          console.warn(
-            `[webhook] ignored: unknown order or amount mismatch (order ${orderId})`,
-          );
+          logger.warn({ orderId }, "webhook.ignored_unknown_order_or_amount_mismatch");
         }
       } else {
-        console.log(`[webhook] "${event}" skipped: payment not captured or details missing`);
+        logger.info({ event }, "webhook.skipped_not_captured_or_incomplete");
       }
     } else {
-      console.log(`[webhook] ignoring event "${event}"`);
+      logger.info({ event }, "webhook.event_ignored");
     }
 
     // 200 tells Razorpay we got it (including duplicates); 500 below makes it retry
     return res.status(200).json({ received: true });
   } catch (error) {
-    console.error("[webhook] error:", error);
+    logger.error({ err: error }, "webhook.failed");
     return res.status(500).json({ message: "Webhook handling failed." });
   }
 };
@@ -220,7 +231,10 @@ export const getPaymentHistory = async (req, res) => {
       })),
     );
   } catch (error) {
-    console.error(error);
+    logger.error(
+      { err: error, userId: String(req.userId) },
+      "payments.history_failed",
+    );
     return res.status(500).json({ message: "Couldn't load payment history." });
   }
 };

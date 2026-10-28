@@ -79,7 +79,7 @@ function Pricing() {
         description: `${order.credits} interview credits`,
         order_id: order.orderId,
         prefill: { name: userData?.name, email: userData?.email },
-        theme: { color: "#4F57C9" },
+        theme: { color: "#3558E8" },
         handler: async (response) => {
           try {
             const result = await axios.post(

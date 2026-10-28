@@ -9,6 +9,11 @@ import paymentRouter from "./routes/paymentRouter.js";
 import { originCheck } from "./middleware/originCheck.js";
 import resumeRouter from "./routes/resumeRouter.js";
 import voiceRouter from "./routes/voiceRouter.js";
+import { randomUUID } from "node:crypto";
+import pinoHttp from "pino-http";
+import { logger } from "./utils/logger.js";
+import mongoose from "mongoose";
+import rateLimit from "express-rate-limit";
 
 // CORS compares the origin as exact text, so normalize CLIENT_URL
 // (a trailing slash or path in the env value would otherwise block every request)
@@ -19,6 +24,33 @@ const app = express();
 
 app.set("trust proxy", 1);
 app.use(helmet());
+app.use(
+  pinoHttp({
+    logger,
+    genReqId: (req, res) => {
+      const incoming = req.headers["x-request-id"];
+      const id =
+        typeof incoming === "string" && /^[\w-]{8,64}$/.test(incoming)
+          ? incoming
+          : randomUUID();
+      res.setHeader("X-Request-Id", id);
+      return id;
+    },
+    customLogLevel: (req, res, err) =>
+      err || res.statusCode >= 500
+        ? "error"
+        : res.statusCode >= 400
+          ? "warn"
+          : "info",
+    autoLogging: {
+      ignore: (req) => req.url === "/health" || req.url === "/ready",
+    },
+    serializers: {
+      req: (req) => ({ id: req.id, method: req.method, url: req.url }),
+      res: (res) => ({ statusCode: res.statusCode }),
+    },
+  }),
+);
 app.use(
   cors({
     origin: clientOrigin,
@@ -44,8 +76,35 @@ app.use((req, res, next) => {
 app.use(cookieParser());
 app.use(originCheck);
 
+// generous per-IP safety net (the per-user limiters on the routes are the strict ones)
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 1000,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) =>
+      req.path === "/health" ||
+      req.path === "/ready" ||
+      req.originalUrl.startsWith("/api/payment/webhook"),
+    message: { message: "Too many requests. Please slow down." },
+  }),
+);
+
 app.get("/", (req, res) => res.json({ message: "Server is running" }));
 app.get("/health", (req, res) => res.json({ status: "ok" }));
+
+// "ready" also checks the database, for a host's health check
+app.get("/ready", async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1)
+      throw new Error("db not connected");
+    await mongoose.connection.db.admin().ping();
+    return res.json({ status: "ready" });
+  } catch {
+    return res.status(503).json({ status: "unavailable" });
+  }
+});
 
 app.use("/api/auth", authRouter);
 app.use("/api/user", userRouter);
@@ -65,7 +124,7 @@ app.use((err, req, res, next) => {
   if (err?.type === "entity.parse.failed") {
     return res.status(400).json({ message: "Invalid JSON body." });
   }
-  console.error(err);
+  logger.error({ err, requestId: req.id }, "unhandled error");
   return res
     .status(500)
     .json({ message: "Something went wrong. Please try again." });

@@ -159,6 +159,6 @@ export const changeSignInEmail = async (req, res) => {
           "That Google account already has its own InterviewFlow profile, so it can't be used here.",
       });
     }
-    return res.status(500).json({ message: "Couldn't change your email." });
+        return sendServerError(res, error, "Couldn't change your email.");
   }
 };

@@ -1,0 +1,112 @@
+{
+  "summary": {
+    "date": "2026-10-21T11:28:43.317Z",
+    "runsPerAnswer": 5,
+    "modelsUsed": [
+      "openrouter/free"
+    ],
+    "failedCalls": 4,
+    "malformedRepliesRetried": 1,
+    "answersInExpectedBand": "10/10",
+    "consistentWithin2Points": "10/10",
+    "averageSpread": 1,
+    "weakLtMediumLtStrong": {
+      "js": true,
+      "react": true,
+      "hr": true
+    },
+    "promptInjectionResisted": true
+  },
+  "rows": [
+    {
+      "id": "js-weak",
+      "group": "js",
+      "level": "weak",
+      "scores": "3,3,4,2,2",
+      "mean": 2.8,
+      "spread": 2,
+      "inBand": true
+    },
+    {
+      "id": "js-medium",
+      "group": "js",
+      "level": "medium",
+      "scores": "5,7,7,7,7",
+      "mean": 6.6,
+      "spread": 2,
+      "inBand": true
+    },
+    {
+      "id": "js-strong",
+      "group": "js",
+      "level": "strong",
+      "scores": "8,9,9,9,8",
+      "mean": 8.6,
+      "spread": 1,
+      "inBand": true
+    },
+    {
+      "id": "react-weak",
+      "group": "react",
+      "level": "weak",
+      "scores": "2,3,2,3",
+      "mean": 2.5,
+      "spread": 1,
+      "inBand": true
+    },
+    {
+      "id": "react-medium",
+      "group": "react",
+      "level": "medium",
+      "scores": "4,4,4,6",
+      "mean": 4.5,
+      "spread": 2,
+      "inBand": true
+    },
+    {
+      "id": "react-strong",
+      "group": "react",
+      "level": "strong",
+      "scores": "9,9,8,9,9",
+      "mean": 8.8,
+      "spread": 1,
+      "inBand": true
+    },
+    {
+      "id": "hr-weak",
+      "group": "hr",
+      "level": "weak",
+      "scores": "3,3,3,3,3",
+      "mean": 3,
+      "spread": 0,
+      "inBand": true
+    },
+    {
+      "id": "hr-medium",
+      "group": "hr",
+      "level": "medium",
+      "scores": "4,4,4,4,4",
+      "mean": 4,
+      "spread": 0,
+      "inBand": true
+    },
+    {
+      "id": "hr-strong",
+      "group": "hr",
+      "level": "strong",
+      "scores": "9,8,8,8",
+      "mean": 8.3,
+      "spread": 1,
+      "inBand": true
+    },
+    {
+      "id": "attack",
+      "group": "attack",
+      "level": "attack",
+      "scores": "0,0,0,0",
+      "mean": 0,
+      "spread": 0,
+      "inBand": true
+    }
+  ]
+}

@@ -1,16 +1,7 @@
 import multer from "multer";
-import fs from "fs";
-
-fs.mkdirSync("public", { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "public"),
-  filename: (req, file, cb) =>
-    cb(null, Date.now() + "-" + file.originalname.replace(/[^\w.-]/g, "_")),
-});
 
 export const upload = multer({
-  storage,
+  storage: multer.memoryStorage(), // the PDF is read from memory and never written to disk
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
     if (file.mimetype !== "application/pdf") {
@@ -30,7 +21,6 @@ export const avatarUpload = multer({
     cb(null, true);
   },
 });
-
 
 export const audioUpload = multer({
   storage: multer.memoryStorage(), // audio is never written to disk

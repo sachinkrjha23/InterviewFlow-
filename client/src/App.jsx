@@ -23,6 +23,7 @@ const Contact = lazy(() => import("./pages/Contact"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const ResumeTailor = lazy(() => import("./pages/ResumeTailor"));
+const Progress = lazy(() => import("./pages/Progress"));
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -64,6 +65,7 @@ function App() {
           <Route path="/interview" element={<ProtectedRoute><InterviewPage /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute><InterviewHistory /></ProtectedRoute>} />
           <Route path="/resume" element={<ProtectedRoute><ResumeTailor /></ProtectedRoute>} />
+          <Route path="/progress" element={<ProtectedRoute><Progress /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/pricing" element={<ProtectedRoute><Pricing /></ProtectedRoute>} />
           <Route path="/report/:id" element={<ProtectedRoute><InterviewReport /></ProtectedRoute>} />

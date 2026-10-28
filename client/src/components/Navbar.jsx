@@ -14,6 +14,7 @@ import Avatar from "./Avatar";
 import Logo from "./Logo";
 import { AnimatePresence, motion } from "motion/react";
 import { FaFileAlt } from "react-icons/fa";
+import { FaChartLine } from "react-icons/fa";
 
 const linkClass = ({ isActive }) =>
   `rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${isActive ? "bg-indigo-soft text-indigo-deep" : "text-muted hover:bg-canvas hover:text-ink"
@@ -64,6 +65,7 @@ function Navbar() {
     { label: "New interview", desc: "Start a mock interview", icon: <FaPlusCircle size={16} />, to: "/interview", mobileOnly: true },
     { label: "Interview history", desc: "Past reports and scores", icon: <FaHistory size={16} />, to: "/history", mobileOnly: true },
     { label: "Resume tailor", desc: "Match your resume to a job", icon: <FaFileAlt size={16} />, to: "/resume", mobileOnly: true },
+    { label: "Progress", desc: "See how your scores change", icon: <FaChartLine size={16} />, to: "/progress", mobileOnly: true },
     { label: "Credits", desc: `${credits} available`, icon: <FaCoins size={16} />, to: "/pricing" },
   ];
 
@@ -81,6 +83,7 @@ function Navbar() {
                 <NavLink to="/interview" className={linkClass}>New interview</NavLink>
                 <NavLink to="/history" className={linkClass}>History</NavLink>
                 <NavLink to="/resume" className={linkClass}>Resume tailor</NavLink>
+                <NavLink to="/progress" className={linkClass}>Progress</NavLink>
               </>
             ) : (
               <>

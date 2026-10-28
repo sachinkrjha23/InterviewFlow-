@@ -3,13 +3,20 @@ import genToken from "../config/token.js";
 import { getAdminAuth } from "../config/firebaseAdmin.js";
 import { publicUser } from "../utils/publicUser.js";
 import { sendServerError } from "../utils/sendError.js";
+import { DEMO_EMAIL, DEMO_CREDITS } from "../config/demo.js";
 
 const getCookieOptions = () => {
   const isProd = process.env.NODE_ENV === "production";
+  const configured = String(process.env.COOKIE_SAMESITE || "").toLowerCase();
+  const sameSite = ["lax", "strict", "none"].includes(configured)
+    ? configured
+    : isProd
+      ? "none"
+      : "strict";
   return {
     httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? "none" : "strict",
+    secure: isProd || sameSite === "none", // browsers reject SameSite=None without Secure
+    sameSite,
   };
 };
 
@@ -85,6 +92,37 @@ export const googleAuth = async (req, res) => {
     return res.status(200).json(publicUser(user));
   } catch (error) {
     return sendServerError(res, error, "Sign-in failed. Please try again.");
+  }
+};
+
+// A shared account for reviewers. It only works when DEMO_MODE=true on the server.
+export const demoLogin = async (req, res) => {
+  try {
+    if (process.env.DEMO_MODE !== "true") {
+      return res.status(404).json({ message: "Route not found." });
+    }
+
+    const user = await User.findOneAndUpdate(
+      { email: DEMO_EMAIL },
+      { $setOnInsert: { name: "Demo User" } },
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
+    );
+
+    // every demo login starts with a full balance
+    if (user.credits < DEMO_CREDITS) {
+      user.credits = DEMO_CREDITS;
+      await user.save();
+    }
+
+    const token = await genToken(user._id);
+    res.cookie("token", token, {
+      ...getCookieOptions(),
+      maxAge: 24 * 60 * 60 * 1000, // the demo session lasts a day
+    });
+
+    return res.status(200).json(publicUser(user));
+  } catch (error) {
+    return sendServerError(res, error, "Couldn't start the demo. Please try again.");
   }
 };
 

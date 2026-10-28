@@ -1,6 +1,7 @@
 import express from "express";
 import { userLimiter } from "../middleware/userLimiter.js";
 import isAuth from "../middleware/isAuth.js";
+import { blockDemo } from "../middleware/blockDemo.js";
 import { avatarUpload } from "../middleware/multer.js";
 import {
   getCurrentUser,
@@ -38,15 +39,22 @@ const handleAvatarUpload = (req, res, next) =>
   });
 
 userRouter.get("/currentUser", isAuth, getCurrentUser);
-userRouter.patch("/profile", isAuth, updateProfile);
+userRouter.patch("/profile", isAuth, blockDemo, updateProfile);
 userRouter.post(
   "/avatar",
   isAuth,
+  blockDemo,
   photoLimiter,
   handleAvatarUpload,
   uploadProfilePhoto,
 );
-userRouter.delete("/avatar", isAuth, removeProfilePhoto);
-userRouter.post("/email/change", isAuth, emailLimiter, changeSignInEmail);
+userRouter.delete("/avatar", isAuth, blockDemo, removeProfilePhoto);
+userRouter.post(
+  "/email/change",
+  isAuth,
+  blockDemo,
+  emailLimiter,
+  changeSignInEmail,
+);
 
 export default userRouter;

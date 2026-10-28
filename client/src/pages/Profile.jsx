@@ -19,7 +19,7 @@ import {
 } from "react-icons/fa";
 import { HiOutlineLogout } from "react-icons/hi";
 import { signOut, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { serverUrl } from "../config.js";
+import { serverUrl, DEMO_EMAIL } from "../config.js";
 import { setUserData } from "../redux/userSlice";
 import { auth } from "../utils/firebase.js";
 import Avatar from "../components/Avatar";
@@ -52,8 +52,8 @@ function Msg({ m }) {
     <p
       role={m.type === "success" ? "status" : "alert"}
       className={`mt-3 rounded-xl border px-4 py-3 text-sm ${m.type === "success"
-          ? "border-teal/30 bg-teal-soft text-teal-deep"
-          : "border-rose/30 bg-rose-soft text-rose-deep"
+        ? "border-teal/30 bg-teal-soft text-teal-deep"
+        : "border-rose/30 bg-rose-soft text-rose-deep"
         }`}
     >
       {m.text}
@@ -287,6 +287,7 @@ function Profile() {
   };
 
   const nameChanged = name.trim() !== (userData?.name || "");
+  const isDemo = userData?.email === DEMO_EMAIL;
   const hasStats = stats && stats.completed > 0;
 
   const statCards = [
@@ -364,7 +365,7 @@ function Profile() {
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.96 }}
                 onClick={() => fileRef.current?.click()}
-                disabled={savingPhoto}
+                disabled={savingPhoto || isDemo}
                 className="inline-flex items-center gap-2 rounded-lg bg-indigo px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <FaCamera size={13} /> Change photo
@@ -374,7 +375,7 @@ function Profile() {
                   whileHover={{ scale: 1.04 }}
                   whileTap={{ scale: 0.96 }}
                   onClick={handleRemovePhoto}
-                  disabled={savingPhoto}
+                  disabled={savingPhoto || isDemo}
                   className="inline-flex items-center gap-2 rounded-lg border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-ink hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <FaTrash size={12} /> Remove
@@ -429,6 +430,11 @@ function Profile() {
               className={card}
             >
               <h2 className="mb-5 text-lg font-bold text-ink">Account details</h2>
+              {isDemo && (
+                <p className="mb-4 rounded-lg bg-amber-soft px-3 py-2 text-xs text-amber-deep">
+                  This is the shared demo account, so its name, photo and sign-in email can't be changed.
+                </p>
+              )}
 
               <label
                 htmlFor="display-name"
@@ -442,11 +448,12 @@ function Profile() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   maxLength={60}
+                  disabled={isDemo}
                   className="min-w-0 flex-1 rounded-xl border border-line bg-canvas px-4 py-3 text-sm text-ink outline-none focus:border-indigo"
                 />
                 <button
                   onClick={handleSaveName}
-                  disabled={savingName || !nameChanged}
+                  disabled={savingName || !nameChanged || isDemo}
                   className="rounded-xl bg-indigo px-5 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {savingName ? "Saving..." : "Save"}
@@ -467,13 +474,13 @@ function Profile() {
                     setConfirmingEmail(true);
                     setEmailMsg(null);
                   }}
-                  disabled={confirmingEmail || changingEmail}
+                  disabled={confirmingEmail || changingEmail || isDemo}
                   className="ml-auto shrink-0 rounded-lg border border-line-strong bg-surface px-4 py-1.5 text-xs font-medium text-ink hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Change
                 </button>
               </div>
-
+              
               {confirmingEmail && (
                 <motion.div
                   initial={{ opacity: 0, y: -6 }}
@@ -620,8 +627,8 @@ function Profile() {
                         </div>
                         <span
                           className={`ml-auto shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${isComplete
-                              ? scoreClass(item.finalScore || 0)
-                              : "bg-amber-soft text-amber-deep"
+                            ? scoreClass(item.finalScore || 0)
+                            : "bg-amber-soft text-amber-deep"
                             }`}
                         >
                           {isComplete

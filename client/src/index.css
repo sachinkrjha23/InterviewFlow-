@@ -1,54 +1,154 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
-  --color-canvas: #FAFAF7;
-  --color-surface: #FFFFFF;
-  --color-ink: #1F2433;
-  --color-muted: #5B6275;
-  --color-line: #E3E1DA;
-  --color-line-strong: #C9C6BC;
+  /* Surfaces and text: a blue-black ground, slightly lighter panels, soft white ink */
+  --color-canvas: #0A0D14;
+  --color-surface: #111623;
+  --color-raised: #171D2C;
+  --color-ink: #ECEFF5;
+  --color-muted: #9BA5B8;
+  --color-line: #232B3B;
+  --color-line-strong: #343E52;
 
-  --color-indigo: #4F57C9;
-  --color-indigo-soft: #ECEEFF;
-  --color-indigo-deep: #2B3189;
+  /* Brand. The token name "indigo" is kept so no component has to change:
+     it is the solid brand blue used for primary buttons (white text on top),
+     with a dark tint for selected states and a light blue for text on that tint. */
+  --color-indigo: #3558E8;
+  --color-indigo-soft: #1B2547;
+  --color-indigo-deep: #B7C6FF;
 
-  --color-teal: #1C9B83;
-  --color-teal-soft: #E2F5F0;
-  --color-teal-deep: #0A5A4C;
+  /* The accent: links, focus ring, text selection, highlights */
+  --color-accent: #7C9BFF;
+  --color-accent-soft: #16214A;
 
-  --color-amber: #D4860B;
-  --color-amber-soft: #FFF1D6;
-  --color-amber-deep: #7A4504;
+  /* Status and metric colours. Each has a solid, a dark tint and a light text colour. */
+  --color-teal: #19B889;
+  --color-teal-soft: #0E2A22;
+  --color-teal-deep: #6FE3BE;
 
-  --color-rose: #D6456B;
-  --color-rose-soft: #FFE8EE;
-  --color-rose-deep: #8A1E3E;
+  --color-amber: #E8A33A;
+  --color-amber-soft: #2D2209;
+  --color-amber-deep: #F6C874;
 
-  --color-violet: #7B4FD8;
-  --color-violet-soft: #F0E8FF;
-  --color-violet-deep: #43228F;
+  --color-rose: #D1294F;
+  --color-rose-soft: #34121C;
+  --color-rose-deep: #FF9FB4;
 
-  --color-sky: #2B87DC;
-  --color-sky-soft: #E3F1FF;
-  --color-sky-deep: #104A80;
+  --color-violet: #8B6CF2;
+  --color-violet-soft: #231B47;
+  --color-violet-deep: #C6B6FF;
+
+  --color-sky: #3C9BEF;
+  --color-sky-soft: #0F2840;
+  --color-sky-deep: #9DD0FF;
+
+  /* Tighter corners than the Tailwind defaults */
+  --radius-xl: 0.625rem;
+  --radius-2xl: 0.75rem;
+  --radius-3xl: 1rem;
+
+  /* Depth: offset plus soft blur, dark enough to read on a dark ground */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --shadow-md: 0 6px 16px -4px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 16px 32px -8px rgb(0 0 0 / 0.55), 0 4px 8px -4px rgb(0 0 0 / 0.4);
+  --shadow-xl: 0 32px 64px -16px rgb(0 0 0 / 0.65), 0 8px 16px -8px rgb(0 0 0 / 0.45);
+
+  /* A slow floating drift used by the 3D scene on the home page */
+  --animate-drift: drift 11s ease-in-out infinite;
+
+  @keyframes drift {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) rotateX(0deg) rotateY(0deg);
+    }
+    50% {
+      transform: translate3d(0, -10px, 0) rotateX(2.5deg) rotateY(-3.5deg);
+    }
+  }
 }
 
 @layer base {
+  html {
+    color-scheme: dark;
+    scrollbar-color: var(--color-line-strong) transparent;
+    scrollbar-width: thin;
+  }
+
   body {
     background-color: var(--color-canvas);
     color: var(--color-ink);
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    caret-color: var(--color-accent);
+  }
+
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  h1 {
+    letter-spacing: -0.03em;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Every page eases in once when it opens */
+  main {
+    animation: page-rise 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  a {
+    text-underline-offset: 3px;
+  }
+
+  ::placeholder {
+    color: var(--color-muted);
+    opacity: 0.8;
   }
 
   ::selection {
-    background: var(--color-indigo-soft);
-    color: var(--color-indigo-deep);
+    background: var(--color-accent-soft);
+    color: var(--color-ink);
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-indigo);
+    outline: 2px solid var(--color-accent);
     outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-line-strong);
+    border-radius: 999px;
+    border: 3px solid var(--color-canvas);
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@keyframes page-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 
