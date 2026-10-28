@@ -2,6 +2,7 @@ import "dotenv/config";
 import mongoose from "mongoose";
 import app from "./app.js";
 import connectDB from "./config/connectDb.js";
+import { logger } from "./utils/logger.js";
 
 const { JWT_SECRET, NODE_ENV, CLIENT_URL } = process.env;
 if (!JWT_SECRET) {
@@ -18,7 +19,7 @@ const PORT = process.env.PORT || 1500;
 try {
   await connectDB();
   const server = app.listen(PORT, () => {
-    console.log(`Server running on PORT: ${PORT}`);
+    logger.info(`Server running on PORT: ${PORT}`);
   });
 
   // On a deploy or restart the host sends SIGTERM: stop taking new requests,
@@ -27,7 +28,7 @@ try {
   const shutdown = (signal) => {
     if (closing) return;
     closing = true;
-    console.log(`${signal} received, shutting down...`);
+    logger.info(`${signal} received, shutting down...`);
     // give up after 25s so a stuck request can't block the restart
     setTimeout(() => process.exit(1), 25000).unref();
     server.close(async () => {
